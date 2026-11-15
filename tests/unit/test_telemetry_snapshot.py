@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -33,10 +34,27 @@ from app.modules.telemetry.snapshot import (
     cost_bucket,
     count_bucket,
     db_size_bucket,
+    deployment_method,
     output_tokens_bucket,
 )
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("installed", [True, False], ids=["pip", "bare"])
+def test_deployment_method_detects_fork_python_distribution(monkeypatch: pytest.MonkeyPatch, installed: bool) -> None:
+    monkeypatch.delenv("KUBERNETES_SERVICE_HOST", raising=False)
+    monkeypatch.setattr(Path, "exists", lambda _path: False)
+
+    def distribution(name: str) -> importlib.metadata.Distribution:
+        assert name == "codexLB-up"
+        if not installed:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return importlib.metadata.PathDistribution(Path("codexLB_up.dist-info"))
+
+    monkeypatch.setattr("app.modules.telemetry.snapshot.importlib.metadata.distribution", distribution)
+
+    assert deployment_method() == ("pip" if installed else "bare")
 
 
 @pytest.fixture

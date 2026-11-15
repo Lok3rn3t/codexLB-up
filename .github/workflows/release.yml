@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -10,14 +12,14 @@ on:
         required: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
 
 jobs:
   release-metadata:
@@ -88,6 +90,8 @@ jobs:
         run: |
           python - <<'PY'
           import glob
+          from email.parser import BytesParser
+          import re
           import zipfile
 
           wheels = glob.glob("dist/*.whl")
@@ -100,6 +104,11 @@ jobs:
               has_index = "app/static/index.html" in names
               has_js = any(name.startswith("app/static/assets/") and name.endswith(".js") for name in names)
               has_css = any(name.startswith("app/static/assets/") and name.endswith(".css") for name in names)
+              metadata_path = next(name for name in names if name.endswith(".dist-info/METADATA"))
+              metadata = BytesParser().parsebytes(zf.read(metadata_path))
+              package_name = re.sub(r"[-_.]+", "-", metadata["Name"]).lower()
+              if package_name != "codexlb-up":
+                  raise SystemExit(f"refusing to publish unexpected distribution: {package_name}")
 
           if not (has_index and has_js and has_css):
               raise SystemExit(
@@ -124,7 +133,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/codex-lb/
+      url: https://pypi.org/project/codexLB-up/
 
     steps:
       - name: Download dist artifacts
@@ -144,6 +153,7 @@ jobs:
 
   docker-image:
     name: Build and push Docker image
+    if: github.repository == 'Soju06/codex-lb'
     needs: [build, release-metadata]
     runs-on: ubuntu-24.04
 
@@ -222,6 +232,7 @@ jobs:
 
   helm-chart:
     name: Publish Helm chart to GHCR
+    if: github.repository == 'Soju06/codex-lb'
     needs: [build]
     runs-on: ubuntu-24.04
 
@@ -264,6 +275,10 @@ jobs:
   create-github-release:
     name: Create GitHub Release
     needs: [publish-to-pypi, docker-image, helm-chart, release-metadata]
+    if: >-
+      always() && needs.publish-to-pypi.result == 'success' &&
+      needs.release-metadata.result == 'success' &&
+      !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
 
     permissions:
@@ -282,6 +297,9 @@ jobs:
         with:
           name: dist
           path: dist
+
+      - name: Compute artifact checksums
+        run: cd dist && sha256sum *.whl *.tar.gz > SHA256SUMS.txt
 
       - name: Resolve previous tag
         id: prev_tag
@@ -364,13 +382,9 @@ jobs:
             echo "## Install / Run"
             echo '```bash'
             if [ "${IS_PRERELEASE}" = "true" ]; then
-              echo "uvx --from \"codex-lb==${PYPI_VERSION}\" codex-lb"
-              echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:${TAG_VERSION}"
-              echo "helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb --version ${TAG_VERSION} --devel"
+              echo "uvx --from \"codexLB-up==${PYPI_VERSION}\" codex-lb"
             else
-              echo 'uvx codex-lb'
-              echo "docker pull ghcr.io/${GITHUB_REPOSITORY}:${TAG_VERSION}"
-              echo "helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb --version ${TAG_VERSION}"
+              echo 'uvx --from codexLB-up codex-lb'
             fi
             echo '```'
           } >> release_notes.md

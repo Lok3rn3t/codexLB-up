@@ -2,13 +2,13 @@ name: Sync Beta Release PR
 
 on:
   push:
-    branches: ["main"]
+    branches: ["codexLB-up"]
   workflow_run:
     workflows: ["Release Please"]
     types: [completed]
 
 concurrency:
-  group: ${{ github.workflow }}-main
+  group: ${{ github.workflow }}-codexLB-up
   cancel-in-progress: false
 
 permissions:
@@ -18,8 +18,8 @@ permissions:
 jobs:
   sync-beta-release-pr:
     if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
+      github.repository == 'Soju06/codex-lb' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
 
     env:
@@ -37,11 +37,11 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout main
+      - name: Checkout default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          ref: main
+          ref: codexLB-up
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
@@ -52,11 +52,11 @@ jobs:
           set -euo pipefail
           repo_owner="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           release_pr="$(gh pr list \
-            --base main \
+            --base codexLB-up \
             --state open \
             --limit 200 \
             --json number,headRefName,headRepositoryOwner \
-            --jq '[.[] | select(.headRefName == "release-please--branches--main" and .headRepositoryOwner.login == "'"${repo_owner}"'")][0].number // empty')"
+            --jq '[.[] | select(.headRefName == "release-please--branches--codexLB-up" and .headRepositoryOwner.login == "'"${repo_owner}"'")][0].number // empty')"
           if [ -z "${release_pr}" ]; then
             echo "found=false" >> "$GITHUB_OUTPUT"
             echo "No open release-please PR; beta PR sync is a no-op."
@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --tags --force
-          git fetch origin release-please--branches--main:refs/remotes/origin/release-please--branches--main
+          git fetch origin release-please--branches--codexLB-up:refs/remotes/origin/release-please--branches--codexLB-up
 
       - name: Prepare beta version bump
         if: steps.release_pr.outputs.found == 'true'
@@ -162,9 +162,7 @@ jobs:
 
           ## Install after publish
           \`\`\`bash
-          uvx --from "codex-lb==${PYPI_VERSION}" codex-lb
-          docker pull ghcr.io/${GITHUB_REPOSITORY}:${VERSION}
-          helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${VERSION} --devel
+          uvx --from "codexLB-up==${PYPI_VERSION}" codex-lb
           \`\`\`
 
           ## Promotion
@@ -172,12 +170,12 @@ jobs:
           EOF
           } > "${body_file}"
 
-          existing_pr="$(gh pr list --base main --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')"
+          existing_pr="$(gh pr list --base codexLB-up --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')"
           if [ -n "${existing_pr}" ]; then
             gh pr edit "${existing_pr}" --title "chore: release ${TAG}" --body-file "${body_file}"
             echo "Updated PR #${existing_pr}"
           else
-            gh pr create --base main --head "${BRANCH}" --title "chore: release ${TAG}" --body-file "${body_file}"
+            gh pr create --base codexLB-up --head "${BRANCH}" --title "chore: release ${TAG}" --body-file "${body_file}"
           fi
 
       - name: Close superseded beta release PRs

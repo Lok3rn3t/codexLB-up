@@ -143,7 +143,7 @@
       );
 
       packageOverlay = system: _final: prev: {
-        codex-lb = prev.codex-lb.overrideAttrs (old: {
+        codexlb-up = prev.codexlb-up.overrideAttrs (old: {
           meta = codexLbMeta;
           src = packageSource;
           postPatch = (old.postPatch or "") + ''
@@ -154,7 +154,7 @@
       };
 
       editableProjectOverlay = final: prev: {
-        codex-lb = prev.codex-lb.overrideAttrs (old: {
+        codexlb-up = prev.codexlb-up.overrideAttrs (old: {
           src = editableSource;
           nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ final.editables ];
           # Editable imports use the checkout, not packaged dashboard assets.
@@ -185,7 +185,7 @@
         in
         mkApplication {
           venv = pythonSet.mkVirtualEnv "codex-lb-env" workspace.deps.default;
-          package = pythonSet.codex-lb;
+          package = pythonSet.codexlb-up;
         }
       );
 
@@ -249,7 +249,7 @@
             ]
           );
           virtualenv = pythonSet.mkVirtualEnv "codex-lb-dev-env" {
-            codex-lb = [ "dev" ];
+            codexlb-up = [ "dev" ];
           };
         in
         {

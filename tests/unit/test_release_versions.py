@@ -9,6 +9,7 @@ import pytest
 
 from scripts.release_versions import (
     assert_project_versions,
+    discover_release_please_base_version,
     format_beta_changelog,
     is_releasable_conventional_commit,
     latest_beta_tag,
@@ -17,6 +18,7 @@ from scripts.release_versions import (
     parse_version,
     read_pyproject_version,
     releasable_commits_since,
+    remote_default_branch,
     tag_targets_head,
     update_project_versions,
 )
@@ -121,6 +123,41 @@ def test_update_project_versions_keeps_all_release_files_in_sync(tmp_path: Path)
     assert package_version == "1.19.0-beta.1"
 
 
+@pytest.mark.parametrize(
+    ("project_name", "lock_name"),
+    [("codexLB-up", "codexlb-up"), ("Codex_LB.UP", "codex-lb-up")],
+)
+def test_update_project_versions_resolves_normalized_distribution_name(
+    tmp_path: Path, project_name: str, lock_name: str
+) -> None:
+    write_minimal_release_files(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        f'[project]\nname = "{project_name}"\nversion = "1.18.2"\n', encoding="utf-8"
+    )
+    upstream_dependency = (
+        '[[package]]\nname = "codex-lb"\nversion = "1.17.0"\nsource = { registry = "https://pypi.org/simple" }\n'
+    )
+    (tmp_path / "uv.lock").write_text(
+        upstream_dependency
+        + f'\n[[package]]\nname = "{lock_name}"\nversion = "1.18.2"\nsource = {{ editable = "." }}\n',
+        encoding="utf-8",
+    )
+
+    update_project_versions(tmp_path, "1.19.0-beta.1")
+
+    assert_project_versions(tmp_path, "1.19.0-beta.1")
+    assert upstream_dependency in (tmp_path / "uv.lock").read_text(encoding="utf-8")
+    assert b"\r\n" not in (tmp_path / "uv.lock").read_bytes()
+
+
+def test_assert_project_versions_rejects_lock_entry_for_different_distribution(tmp_path: Path) -> None:
+    write_minimal_release_files(tmp_path)
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "codexLB-up"\nversion = "1.18.2"\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="editable codexlb-up package entry"):
+        assert_project_versions(tmp_path, "1.18.2")
+
+
 def test_assert_project_versions_accepts_pep440_uv_lock_prerelease(tmp_path: Path) -> None:
     write_minimal_release_files(tmp_path, "1.20.0-beta.3")
     (tmp_path / "uv.lock").write_text(
@@ -177,6 +214,53 @@ def test_next_beta_number_uses_existing_tags(tmp_path: Path) -> None:
     assert latest is not None
     assert latest.tag == "v1.19.0-beta.3"
     assert next_beta_number(tmp_path, "1.19.0") == 4
+
+
+@pytest.mark.parametrize("remote_branch", [False, True])
+def test_release_please_discovery_uses_origin_default_branch(tmp_path: Path, remote_branch: bool) -> None:
+    write_minimal_release_files(tmp_path, "1.19.0")
+    init_git_repo(tmp_path)
+    subprocess.run(["git", "branch", "release-please--branches--main"], cwd=tmp_path, check=True)
+    update_project_versions(tmp_path, "1.25.0")
+    commit_all(tmp_path, "chore: prepare fork release")
+    subprocess.run(["git", "update-ref", "refs/remotes/origin/codexLB-up", "HEAD"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/codexLB-up"],
+        cwd=tmp_path,
+        check=True,
+    )
+    ref_prefix = "refs/remotes/origin" if remote_branch else "refs/heads"
+    subprocess.run(
+        ["git", "update-ref", f"{ref_prefix}/release-please--branches--codexLB-up", "HEAD"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    assert remote_default_branch(tmp_path) == "codexLB-up"
+    assert discover_release_please_base_version(tmp_path) == "1.25.0"
+
+
+def test_release_please_discovery_keeps_main_without_origin_head(tmp_path: Path) -> None:
+    write_minimal_release_files(tmp_path, "1.19.0")
+    init_git_repo(tmp_path)
+    subprocess.run(["git", "branch", "release-please--branches--main"], cwd=tmp_path, check=True)
+
+    assert remote_default_branch(tmp_path) == "main"
+    assert discover_release_please_base_version(tmp_path) == "1.19.0"
+
+
+def test_release_please_discovery_rejects_stale_main_branch_after_default_changes(tmp_path: Path) -> None:
+    write_minimal_release_files(tmp_path, "1.19.0")
+    init_git_repo(tmp_path)
+    subprocess.run(["git", "branch", "release-please--branches--main"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/codexLB-up"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    with pytest.raises(ValueError, match="could not discover next stable version"):
+        discover_release_please_base_version(tmp_path)
 
 
 def test_tag_targets_head_detects_covered_beta_merge(tmp_path: Path) -> None:

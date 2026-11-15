@@ -2,7 +2,7 @@ name: Publish Beta Release
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["codexLB-up"]
     types: [closed]
 
 concurrency:
@@ -90,9 +90,7 @@ jobs:
 
           ## Install / Run
           \`\`\`bash
-          uvx --from "codex-lb==${PYPI_VERSION}" codex-lb
-          docker pull ghcr.io/${GITHUB_REPOSITORY}:${VERSION}
-          helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${VERSION} --devel
+          uvx --from "codexLB-up==${PYPI_VERSION}" codex-lb
           \`\`\`
 
           Promote this train by merging the normal release-please PR for ${VERSION%-beta.*}.

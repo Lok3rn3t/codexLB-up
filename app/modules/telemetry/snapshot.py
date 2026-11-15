@@ -484,7 +484,7 @@ def deployment_method() -> DeploymentMethod:
     if Path("/.dockerenv").exists() or Path("/run/.containerenv").exists():
         return "docker"
     try:
-        importlib.metadata.distribution("codex-lb")
+        importlib.metadata.distribution("codexLB-up")
     except importlib.metadata.PackageNotFoundError:
         return "bare"
     return "pip"

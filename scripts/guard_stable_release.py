@@ -12,6 +12,7 @@ import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from scripts.guard_beta_release import (
     GuardError,
@@ -24,9 +25,21 @@ from scripts.release_versions import (
     canonical_release_version_for_file,
     parse_version,
     read_project_versions,
+    read_project_versions_at_ref,
+    remote_default_branch,
 )
 
-RELEASE_PLEASE_BRANCH = "release-please--branches--main"
+
+def _release_please_branch(event: Mapping[str, Any], pr: Mapping[str, Any] | None) -> str:
+    base = pr.get("base") if pr is not None else None
+    base_ref = base.get("ref") if isinstance(base, Mapping) else None
+    if isinstance(base_ref, str) and base_ref:
+        return f"release-please--branches--{base_ref}"
+    repository = event.get("repository")
+    default_branch = repository.get("default_branch") if isinstance(repository, Mapping) else None
+    if isinstance(default_branch, str) and default_branch:
+        return f"release-please--branches--{default_branch}"
+    return "release-please--branches--main"
 
 
 def _canonical_versions(versions: Mapping[str, str]) -> dict[str, str]:
@@ -34,51 +47,10 @@ def _canonical_versions(versions: Mapping[str, str]) -> dict[str, str]:
 
 
 def _read_project_versions_at_ref(root: Path, ref: str) -> dict[str, str]:
-    # Reuse the beta guard's ref reader indirectly by checking out file content is
-    # deliberately avoided here; instead invoke the existing public helper by
-    # running it against a temporary index-less materialization would be overkill.
-    # The stable guard only needs a small fixed set of version fields, so keep this
-    # logic local and stdlib-only.
-    import json
-    import re
-    import subprocess
-
-    def git_show(path: str) -> str:
-        return subprocess.check_output(["git", "show", f"{ref}:{path}"], cwd=root, text=True)
-
-    def find(pattern: str, text: str, name: str) -> str:
-        match = re.search(pattern, text, flags=re.MULTILINE)
-        if not match:
-            raise GuardError(f"could not find {name} in {ref}")
-        return match.group(1)
-
-    pyproject_text = git_show("pyproject.toml")
     try:
-        import tomllib
-
-        pyproject_data = tomllib.loads(pyproject_text)
-        project = pyproject_data.get("project")
-        pyproject_version = project.get("version") if isinstance(project, dict) else None
-    except Exception as exc:  # pragma: no cover - defensive corruption path
-        raise GuardError(f"could not read pyproject version at {ref}: {exc}") from exc
-    if not isinstance(pyproject_version, str) or not pyproject_version:
-        raise GuardError(f"could not find pyproject version in {ref}")
-
-    package_data = json.loads(git_show("frontend/package.json"))
-    chart_text = git_show("deploy/helm/codex-lb/Chart.yaml")
-    uv_text = git_show("uv.lock")
-    return {
-        "pyproject.toml": pyproject_version,
-        "app/__init__.py": find(r'^__version__ = "([^"]+)"', git_show("app/__init__.py"), "app version"),
-        "frontend/package.json": package_data["version"],
-        "deploy/helm/codex-lb/Chart.yaml version": find(r"^version: (.+)$", chart_text, "chart version"),
-        "deploy/helm/codex-lb/Chart.yaml appVersion": find(r"^appVersion: (.+)$", chart_text, "chart appVersion"),
-        "uv.lock": find(
-            r'\[\[package\]\]\nname = "codex-lb"\nversion = "([^"]+)"\nsource = \{ editable = "\." \}',
-            uv_text,
-            "uv.lock codex-lb version",
-        ),
-    }
+        return read_project_versions_at_ref(root, ref)
+    except ValueError as exc:
+        raise GuardError(f"could not read release versions at {ref}: {exc}") from exc
 
 
 def _changed_version_fields(base_versions: Mapping[str, str], current_versions: Mapping[str, str]) -> list[str]:
@@ -115,11 +87,12 @@ def guard_stable_pull_request(root: Path, event_path: str, base_ref: str, head_r
         return
 
     expected_changed = sorted(current_versions)
+    release_please_branch = _release_please_branch(event, pr)
     if head_ref:
-        if head_ref != RELEASE_PLEASE_BRANCH:
+        if head_ref != release_please_branch:
             raise GuardError(
                 "Stable release promotions must come from the release-please branch.\n"
-                f"Expected head branch: {RELEASE_PLEASE_BRANCH}\n"
+                f"Expected head branch: {release_please_branch}\n"
                 f"Actual head branch: {head_ref}\n"
                 f"Changed release fields: {', '.join(changed)}"
             )
@@ -148,13 +121,16 @@ def guard_stable_pull_request(root: Path, event_path: str, base_ref: str, head_r
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="repository root")
-    parser.add_argument("--base-ref", default="origin/main", help="base ref for PR diff checks")
+    parser.add_argument("--base-ref", help="base ref for PR diff checks (defaults to origin's default branch)")
     parser.add_argument("--head-ref", default=os.environ.get("GITHUB_HEAD_REF", ""), help="PR head branch name")
     parser.add_argument("--event-path", default=os.environ.get("GITHUB_EVENT_PATH", ""), help="GitHub event JSON path")
     args = parser.parse_args()
 
+    root = Path(args.root).resolve()
     try:
-        guard_stable_pull_request(Path(args.root).resolve(), args.event_path, args.base_ref, args.head_ref)
+        guard_stable_pull_request(
+            root, args.event_path, args.base_ref or f"origin/{remote_default_branch(root)}", args.head_ref
+        )
     except GuardError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1

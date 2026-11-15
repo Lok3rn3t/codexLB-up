@@ -36,15 +36,25 @@ describe("ModelCatalogueSettings", () => {
 
     const dashboardRow = screen.getByText("gpt-5.4").closest("tr");
     expect(dashboardRow).not.toBeNull();
-    expect(within(dashboardRow as HTMLElement).getByText("515,000")).toBeInTheDocument();
+    expect(
+      within(dashboardRow as HTMLElement).getByText((515_000).toLocaleString(), { collapseWhitespace: false }),
+    ).toBeInTheDocument();
     expect(within(dashboardRow as HTMLElement).getByText("Dashboard")).toBeInTheDocument();
-    expect(within(dashboardRow as HTMLElement).getByText("Environment: 300,000")).toBeInTheDocument();
+    expect(
+      within(dashboardRow as HTMLElement).getByText(`Environment: ${(300_000).toLocaleString()}`, {
+        collapseWhitespace: false,
+      }),
+    ).toBeInTheDocument();
     // A dashboard row that shadows an environment entry resets to it instead of vanishing.
     expect(within(dashboardRow as HTMLElement).getByRole("button", { name: "Reset to inherited" })).toBeInTheDocument();
 
     const envRow = screen.getByText("gpt-5.5").closest("tr");
     expect(envRow).not.toBeNull();
-    expect(within(envRow as HTMLElement).getByText("Inherited from environment (400,000)")).toBeInTheDocument();
+    expect(
+      within(envRow as HTMLElement).getByText(`Inherited from environment (${(400_000).toLocaleString()})`, {
+        collapseWhitespace: false,
+      }),
+    ).toBeInTheDocument();
     // Environment-inherited rows are read-only until overridden: no remove/reset action.
     expect(within(envRow as HTMLElement).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(within(envRow as HTMLElement).queryByRole("button", { name: "Reset to inherited" })).not.toBeInTheDocument();

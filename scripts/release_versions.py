@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -95,6 +95,20 @@ def read_pyproject_version(root: Path) -> str:
     return read_pyproject_version_text((root / "pyproject.toml").read_text(encoding="utf-8"))
 
 
+def _project_package_name(pyproject_text: str) -> str:
+    project = tomllib.loads(pyproject_text).get("project")
+    name = project.get("name") if isinstance(project, dict) else None
+    if not isinstance(name, str) or not name:
+        raise ValueError("could not find [project] name in pyproject.toml")
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _editable_package_pattern(name: str) -> str:
+    return (
+        r'(\[\[package\]\]\nname = "' + re.escape(name) + r'"\nversion = ")([^"]+)("\nsource = \{ editable = "\." \})'
+    )
+
+
 def _replace_once(text: str, pattern: str, replacement: str, *, path: str) -> str:
     new_text, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE)
     if count != 1:
@@ -103,7 +117,7 @@ def _replace_once(text: str, pattern: str, replacement: str, *, path: str) -> st
 
 
 def _write_text(path: Path, text: str) -> None:
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def update_project_versions(root: Path, version: str) -> None:
@@ -117,6 +131,7 @@ def update_project_versions(root: Path, version: str) -> None:
     parse_version(version)
 
     pyproject = root / "pyproject.toml"
+    package_name = _project_package_name(pyproject.read_text(encoding="utf-8"))
     _write_text(
         pyproject,
         _replace_once(
@@ -152,20 +167,24 @@ def update_project_versions(root: Path, version: str) -> None:
     uv_lock = root / "uv.lock"
     uv_text = uv_lock.read_text(encoding="utf-8")
     uv_text, count = re.subn(
-        r'(\[\[package\]\]\nname = "codex-lb"\nversion = ")[^"]+("\nsource = \{ editable = "\." \})',
-        rf"\g<1>{version}\2",
+        _editable_package_pattern(package_name),
+        rf"\g<1>{version}\3",
         uv_text,
-        count=1,
     )
     if count != 1:
-        raise ValueError("expected exactly one codex-lb package entry in uv.lock")
+        raise ValueError(f"expected exactly one editable {package_name} package entry in uv.lock")
     _write_text(uv_lock, uv_text)
 
 
-def read_project_versions(root: Path) -> dict[str, str]:
-    package_data = json.loads((root / "frontend" / "package.json").read_text(encoding="utf-8"))
-    chart_text = (root / "deploy" / "helm" / "codex-lb" / "Chart.yaml").read_text(encoding="utf-8")
-    uv_text = (root / "uv.lock").read_text(encoding="utf-8")
+def _read_project_versions(read_text: Callable[[str], str]) -> dict[str, str]:
+    pyproject_text = read_text("pyproject.toml")
+    package_name = _project_package_name(pyproject_text)
+    package_data = json.loads(read_text("frontend/package.json"))
+    chart_text = read_text("deploy/helm/codex-lb/Chart.yaml")
+    uv_text = read_text("uv.lock")
+    editable_entries = re.findall(_editable_package_pattern(package_name), uv_text)
+    if len(editable_entries) != 1:
+        raise ValueError(f"expected exactly one editable {package_name} package entry in uv.lock")
 
     def find(pattern: str, text: str, name: str) -> str:
         match = re.search(pattern, text, flags=re.MULTILINE)
@@ -174,21 +193,27 @@ def read_project_versions(root: Path) -> dict[str, str]:
         return match.group(1)
 
     return {
-        "pyproject.toml": read_pyproject_version(root),
+        "pyproject.toml": read_pyproject_version_text(pyproject_text),
         "app/__init__.py": find(
             r'^__version__ = "([^"]+)"',
-            (root / "app" / "__init__.py").read_text(encoding="utf-8"),
+            read_text("app/__init__.py"),
             "app version",
         ),
         "frontend/package.json": package_data["version"],
         "deploy/helm/codex-lb/Chart.yaml version": find(r"^version: (.+)$", chart_text, "chart version"),
         "deploy/helm/codex-lb/Chart.yaml appVersion": find(r"^appVersion: (.+)$", chart_text, "chart appVersion"),
-        "uv.lock": find(
-            r'\[\[package\]\]\nname = "codex-lb"\nversion = "([^"]+)"\nsource = \{ editable = "\." \}',
-            uv_text,
-            "uv.lock codex-lb version",
-        ),
+        "uv.lock": editable_entries[0][1],
     }
+
+
+def read_project_versions(root: Path) -> dict[str, str]:
+    return _read_project_versions(lambda path: (root / path).read_text(encoding="utf-8"))
+
+
+def read_project_versions_at_ref(root: Path, ref: str) -> dict[str, str]:
+    """Read a coherent release snapshot without mutating the working tree."""
+
+    return _read_project_versions(lambda path: run_git(root, "show", f"{ref}:{path}").stdout)
 
 
 def canonical_release_version(value: str) -> str:
@@ -286,10 +311,20 @@ def format_beta_changelog(root: Path, ref: str) -> str:
     return "\n".join(lines)
 
 
+def remote_default_branch(root: Path) -> str:
+    """Resolve origin's default branch, retaining main for untracked repositories."""
+
+    result = run_git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD", check=False)
+    if result.returncode == 0:
+        return result.stdout.strip().removeprefix("refs/remotes/origin/")
+    return "main"
+
+
 def discover_release_please_base_version(root: Path) -> str:
     """Read the next stable version from the release-please PR branch."""
 
-    candidates = ["origin/release-please--branches--main", "release-please--branches--main"]
+    branch = f"release-please--branches--{remote_default_branch(root)}"
+    candidates = [f"origin/{branch}", branch]
     last_error = ""
     for ref in candidates:
         proc = run_git(root, "show", f"{ref}:pyproject.toml", check=False)

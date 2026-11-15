@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.guard_beta_release import changed_release_version_files
 from scripts.release_versions import update_project_versions
 
 
@@ -33,6 +34,16 @@ def write_minimal_release_files(root: Path, version: str = "1.20.0") -> None:
 
 def git(root: Path, *args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+
+def rename_distribution(root: Path) -> None:
+    for filename, name in (("pyproject.toml", "codexLB-up"), ("uv.lock", "codexlb-up")):
+        path = root / filename
+        path.write_text(
+            path.read_text(encoding="utf-8").replace('name = "codex-lb"', f'name = "{name}"'),
+            encoding="utf-8",
+            newline="\n",
+        )
 
 
 def init_repo_with_beta_commit(root: Path, version: str = "1.20.0-beta.3") -> str:
@@ -113,6 +124,51 @@ def run_guard(project_root: Path, repo_root: Path, *args: str) -> subprocess.Com
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+
+
+def test_version_comparison_preserves_worktree_when_distribution_is_renamed(tmp_path: Path) -> None:
+    base = init_repo_with_beta_commit(tmp_path)
+    rename_distribution(tmp_path)
+    paths = [path for path in tmp_path.rglob("*") if path.is_file() and ".git" not in path.parts]
+    before = {path: path.read_bytes() for path in paths}
+
+    assert changed_release_version_files(tmp_path, base) == []
+    assert {path: path.read_bytes() for path in paths} == before
+
+
+@pytest.mark.parametrize("stale_lock", [False, True])
+def test_beta_guard_compares_fork_release_with_upstream_package_name(tmp_path: Path, stale_lock: bool) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    base = init_repo_with_beta_commit(repo)
+    rename_distribution(repo)
+    update_project_versions(repo, "1.20.0-beta.4")
+    if stale_lock:
+        path = repo / "uv.lock"
+        path.write_text(path.read_text(encoding="utf-8").replace("1.20.0-beta.4", "1.20.0-beta.3"), encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "chore: prepare fork beta")
+    sha = git(repo, "rev-parse", "HEAD")
+    branch = "release/beta-1.20.0-beta.4"
+    event = event_file(tmp_path, head_ref=branch, head_sha=sha, body=validation_body(sha))
+
+    result = run_guard(
+        Path(__file__).resolve().parents[2],
+        repo,
+        "--base-ref",
+        base,
+        "--head-ref",
+        branch,
+        "--event-path",
+        str(event),
+    )
+
+    if stale_lock:
+        assert result.returncode == 1
+        assert "Release-managed version files must agree" in result.stderr
+        assert "uv.lock='1.20.0-beta.3'" in result.stderr
+    else:
+        assert result.returncode == 0, result.stderr
 
 
 def test_pr_guard_rejects_beta_metadata_from_noncanonical_branch(tmp_path: Path) -> None:

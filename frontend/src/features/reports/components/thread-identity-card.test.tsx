@@ -62,7 +62,9 @@ describe("ThreadIdentityCard", () => {
     );
 
     expect(screen.getByTestId("thread-identity-keyed-factor")).toHaveTextContent("2.29");
-    expect(screen.getByTestId("thread-identity-keyed-factor")).toHaveTextContent("1,929 conversations");
+    expect(screen.getByTestId("thread-identity-keyed-factor")).toHaveTextContent(
+      `${(1929).toLocaleString()} conversations`.replace(/\s/g, " "),
+    );
     expect(screen.getByTestId("thread-identity-keyed-single-account")).toHaveTextContent("45.3%");
     expect(screen.getByTestId("thread-identity-keyed-switch-rate")).toHaveTextContent("7.8%");
     expect(screen.getByTestId("thread-identity-keyed-cache-hit")).toHaveTextContent("91.0%");

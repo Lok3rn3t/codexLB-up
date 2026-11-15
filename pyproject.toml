@@ -1,8 +1,8 @@
 [project]
-name = "codex-lb"
-version = "1.25.0-beta.9"
-description = "Codex load balancer and proxy for ChatGPT accounts with usage dashboard"
-readme = "README.md"
+name = "codexLB-up"
+version = "1.25.0-beta.10"
+description = "Maintained codex-lb fork with audited compatibility and security fixes"
+readme = "docs/distribution.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Soju06", email = "qlskssk@gmail.com" }]
 maintainers = [
@@ -80,6 +80,12 @@ tracing = [
     "opentelemetry-instrumentation-aiohttp-client>=0.46",
     "opentelemetry-instrumentation-sqlalchemy>=0.46",
 ]
+
+[project.urls]
+Repository = "https://github.com/Lok3rn3t/codexLB-up"
+Issues = "https://github.com/Lok3rn3t/codexLB-up/issues"
+Releases = "https://github.com/Lok3rn3t/codexLB-up/releases"
+Upstream = "https://github.com/Soju06/codex-lb"
 
 [dependency-groups]
 dev = [

@@ -21,8 +21,9 @@ from scripts.release_versions import (
     ReleaseVersion,
     parse_version,
     read_project_versions,
+    read_project_versions_at_ref,
     read_pyproject_version,
-    read_pyproject_version_text,
+    remote_default_branch,
 )
 
 RELEASE_MANAGED_FILES = (
@@ -137,59 +138,15 @@ def changed_release_version_files(root: Path, base_ref: str) -> list[str]:
     """Return release-managed files whose version value changed from *base_ref*."""
 
     current_versions = read_project_versions(root)
-    changed: list[str] = []
-    for name, current_version in current_versions.items():
-        path = name.split(" ", 1)[0]
-        proc = run_git(root, "show", f"{base_ref}:{path}", check=False)
-        if proc.returncode != 0:
-            changed.append(name)
-            continue
-
-        original = root / path
-        original_text = original.read_text(encoding="utf-8")
-        try:
-            original.write_text(proc.stdout, encoding="utf-8")
-            base_version = read_project_versions(root)[name]
-        finally:
-            original.write_text(original_text, encoding="utf-8")
-
-        if base_version != current_version:
-            changed.append(name)
-    return changed
-
-
-def _read_ref_text(root: Path, ref: str, path: str) -> str:
-    proc = run_git(root, "show", f"{ref}:{path}")
-    return proc.stdout
+    base_versions = _read_project_versions_at_ref(root, base_ref)
+    return [name for name, version in current_versions.items() if base_versions.get(name) != version]
 
 
 def _read_project_versions_at_ref(root: Path, ref: str) -> dict[str, str]:
-    package_data = json.loads(_read_ref_text(root, ref, "frontend/package.json"))
-    chart_text = _read_ref_text(root, ref, "deploy/helm/codex-lb/Chart.yaml")
-    uv_text = _read_ref_text(root, ref, "uv.lock")
-
-    def find(pattern: str, text: str, name: str) -> str:
-        match = re.search(pattern, text, flags=re.MULTILINE)
-        if not match:
-            raise GuardError(f"could not find {name} in {ref}")
-        return match.group(1)
-
-    return {
-        "pyproject.toml": read_pyproject_version_text(_read_ref_text(root, ref, "pyproject.toml")),
-        "app/__init__.py": find(
-            r'^__version__ = "([^"]+)"',
-            _read_ref_text(root, ref, "app/__init__.py"),
-            "app version",
-        ),
-        "frontend/package.json": package_data["version"],
-        "deploy/helm/codex-lb/Chart.yaml version": find(r"^version: (.+)$", chart_text, "chart version"),
-        "deploy/helm/codex-lb/Chart.yaml appVersion": find(r"^appVersion: (.+)$", chart_text, "chart appVersion"),
-        "uv.lock": find(
-            r'\[\[package\]\]\nname = "codex-lb"\nversion = "([^"]+)"\nsource = \{ editable = "\." \}',
-            uv_text,
-            "uv.lock codex-lb version",
-        ),
-    }
+    try:
+        return read_project_versions_at_ref(root, ref)
+    except ValueError as exc:
+        raise GuardError(f"could not read release versions at {ref}: {exc}") from exc
 
 
 def _canonical_release_version(value: str) -> str:
@@ -386,7 +343,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="repository root")
     parser.add_argument("--mode", choices=["pr", "publish"], default="pr")
-    parser.add_argument("--base-ref", default="origin/main", help="base ref for PR diff checks")
+    parser.add_argument("--base-ref", help="base ref for PR diff checks (defaults to origin's default branch)")
     parser.add_argument("--head-ref", default=os.environ.get("GITHUB_HEAD_REF", ""), help="PR head branch name")
     parser.add_argument("--event-path", default=os.environ.get("GITHUB_EVENT_PATH", ""), help="GitHub event JSON path")
     args = parser.parse_args()
@@ -395,7 +352,7 @@ def main() -> int:
     event = load_event(args.event_path)
     try:
         if args.mode == "pr":
-            guard_pull_request(root, event, args.base_ref, args.head_ref)
+            guard_pull_request(root, event, args.base_ref or f"origin/{remote_default_branch(root)}", args.head_ref)
         else:
             guard_publish(root, event)
     except GuardError as exc:
