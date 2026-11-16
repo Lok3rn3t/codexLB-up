@@ -366,7 +366,15 @@ def _normalize_responses_input_instructions(data: JsonValue) -> JsonValue:
             changed = True
             continue
         role = item_mapping.get("role")
-        if role not in ("system", "developer"):
+        if role == "developer":
+            # Upstream accepts developer messages in ``input``, and
+            # ``previous_response_id`` carries ``input`` forward but not
+            # ``instructions``; hoisting would drop them from chained responses.
+            input_items.append(item)
+            # A developer-only input still needs ``instructions`` to default to "".
+            changed = True
+            continue
+        if role != "system":
             input_items.append(item)
             continue
         instruction_text, preserved_content = _split_responses_instruction_item_content(item_mapping)
@@ -1741,7 +1749,7 @@ def responses_input_contains_goal_continuation_context(input_value: JsonValue) -
 def responses_request_contains_goal_continuation_context(payload: ResponsesRequest) -> bool:
     """Return whether a normalized request carries Codex's goal restart marker."""
 
-    # ResponsesRequest normalization lifts developer/system input messages into
+    # ResponsesRequest normalization lifts system input messages into
     # ``instructions``. The marker can therefore disappear from ``input`` and
     # follow pre-existing instruction text by the time affinity is classified.
     # Keep both locations in this check or a harmless parser refactor can

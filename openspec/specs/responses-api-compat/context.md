@@ -357,3 +357,18 @@ The fork's baseline already passed all 48 split-record retry cases. They preserv
 compatibility coverage; the newly demonstrated regression was an incomplete
 quarantined resend dispatched without required prior context. These isolated
 tests do not establish the cause of individual production failures.
+
+## Developer input context
+
+Responses normalization preserves developer messages in the input history so a
+later previous_response_id continuation can retain their content. Only system
+messages are promoted to request-local instructions. Developer messages receive
+the same unsupported-reasoning sanitization as other message roles. For example,
+permissions provided in an initial developer message stay in the first response
+input when the next request supplies only tool outputs. Responses Lite keeps its
+existing intact-input contract. Provenance and route regression evidence are in
+`openspec/changes/preserve-developer-input-context/`.
+
+### Selected WebSocket anchor coverage
+
+Proxy injection inherits context coverage from the selected completion. Coverage is snapshotted before capability routing and API-key reservation, so concurrent completion cannot change the meaning of an already selected anchor. A client-anchored delta followed by proxy injection remains incomplete for later explicit-anchor replay; the native client receives its canonical recovery error and can resend retained history.

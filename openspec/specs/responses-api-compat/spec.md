@@ -1214,7 +1214,7 @@ When an HTTP bridge session receives an anonymous upstream `previous_response_no
 ### Requirement: WebSocket full-resend previous-response misses retry without stale anchor
 When a direct WebSocket `response.create` request includes both `previous_response_id` and a self-contained full resend payload, the service MUST retain a safe replay body without `previous_response_id`. If upstream rejects the anchor with `previous_response_not_found` before `response.created`, the service MUST reconnect and replay the retained full payload as a fresh turn instead of forwarding the raw upstream invalid-request error. A payload that only carries incremental tool outputs for tool calls that are not also present in the same request is not self-contained and MUST NOT be replayed as a fresh turn without `previous_response_id`.
 
-A client-supplied `previous_response_id` payload counts as a full resend only when the anchor is the response this downstream connection last completed, that response's request input covered its whole context (it had no anchor, a proxy-injected anchor, or was itself a proven full resend), and the payload's input restates that stored input prefix. A completion recorded from a client-anchored delta stores only the delta, so it never proves a later anchorless replay. Clients such as Codex send `previous_response_id` with only the incremental input, so for any other anchor (one this connection never completed, such as an interrupted response, an accepted prewarm, or a response from an earlier connection) the service cannot tell a delta from a full history. It MUST NOT retain or send an anchorless replay body for such a payload, and a pre-output continuity miss MUST reach the client through the existing route-specific recovery contract: sanitized `previous_response_not_found` for native Codex, or `stream_incomplete` for public `/v1/responses`.
+A client-supplied `previous_response_id` payload counts as a full resend only when the anchor is the response this downstream connection last completed, that response's request input covered its whole context (it had no anchor, inherited complete coverage from its selected proxy-injected anchor, or was itself a proven full resend), and the payload's input restates that stored input prefix. A completion recorded from a client-anchored delta stores only the delta, so it never proves a later anchorless replay. Clients such as Codex send `previous_response_id` with only the incremental input, so for any other anchor (one this connection never completed, such as an interrupted response, an accepted prewarm, or a response from an earlier connection) the service cannot tell a delta from a full history. It MUST NOT retain or send an anchorless replay body for such a payload, and a pre-output continuity miss MUST reach the client through the existing route-specific recovery contract: sanitized `previous_response_not_found` for native Codex, or `stream_incomplete` for public `/v1/responses`.
 
 #### Scenario: full-resend WebSocket follow-up loses just-completed anchor
 - **WHEN** a WebSocket `/v1/responses` or `/backend-api/codex/responses` follow-up has `previous_response_id`
@@ -4101,9 +4101,14 @@ The service MUST classify an upstream `invalid_request_error` with `param=input`
 ### Requirement: Non-message system and developer input items are preserved
 
 When normalizing Responses or compact request `input`, the service MUST only
-hoist items that are instruction messages — `system`/`developer`-role items
-whose `type` is omitted or `"message"` — into the top-level `instructions`
-field. Any `system`/`developer`-role input item carrying any other `type`
+hoist items that are system instruction messages — `system`-role items whose
+`type` is omitted or `"message"` — into the top-level `instructions` field.
+`developer`-role messages MUST remain in `input`, in their original position,
+because `previous_response_id` carries `input` but not `instructions` into
+chained responses. They receive the same input sanitization as other message
+items: interleaved-reasoning keys (`reasoning_content`, `reasoning_details`,
+`tool_calls`, `function_call`) and reasoning content parts are removed, because
+upstream rejects them on every message role. Any `system`/`developer`-role input item carrying any other `type`
 value, including item types the service does not model, MUST be forwarded
 upstream unchanged and in its original input position. This preservation MUST
 hold both when the request is validated and when the request is serialized for
@@ -4117,7 +4122,8 @@ rather than replaced by the trim marker. When a non-message
 `system`/`developer` item is preserved and the request carries no top-level
 `instructions` and no hoistable instruction messages, the service MUST default
 `instructions` to the empty string so the request still validates and
-forwards. Requests whose input contains an `additional_tools` item remain
+forwards. The service MUST apply the same default when the request carries no top-level
+`instructions` and its `input` holds a `developer` message. Requests whose input contains an `additional_tools` item remain
 governed by the Responses Lite rule that leaves the entire input array and
 top-level `instructions` unchanged.
 
@@ -4126,7 +4132,7 @@ top-level `instructions` unchanged.
 - **WHEN** a Responses or compact request `input` contains a typed, non-message
   item such as `{"type": "future_directive", "role": "developer", ...}`
   alongside developer instruction messages and user messages
-- **THEN** the developer instruction messages are hoisted into `instructions`
+- **THEN** the developer instruction messages remain in `input`
 - **AND** the `future_directive` item remains in `input` unchanged, in its
   original position
 - **AND** the upstream-serialized payload retains the item unchanged
@@ -4164,6 +4170,23 @@ top-level `instructions` unchanged.
 - **WHEN** an OpenAI-compatible client sends `input` containing
   `{"role": "system", "content": "sys"}` without a `type` field
 - **THEN** that item is hoisted into `instructions` as before
+
+#### Scenario: developer messages stay in input
+
+- **WHEN** a Responses or compact request `input` contains
+  `{"type": "message", "role": "developer", ...}` and user messages, with or
+  without top-level `instructions`
+- **THEN** the developer message remains in `input` unchanged, in its
+  original position, including in the upstream-serialized payload
+- **AND** `instructions` keeps its value, or defaults to `""` when absent
+
+#### Scenario: developer messages are sanitized like other messages
+
+- **WHEN** a Responses or compact request `input` contains a developer
+  message carrying `reasoning_content`, `reasoning_details`, `tool_calls`,
+  `function_call`, or a `reasoning` content part
+- **THEN** the developer message remains in `input`, in its original position
+- **AND** those keys and content parts are removed from it before forwarding
 
 ### Requirement: Responses Lite follow-up transformations fail closed
 
@@ -11027,3 +11050,27 @@ validation, and fences MUST remain isolated by thread and API-key scope.
 
 - **WHEN** the request explicitly supplies an anchor or belongs to an unrelated thread or API key
 - **THEN** fallback handling does not silently remove its anchor or import another scope's fence
+
+### Requirement: Injected WebSocket anchor coverage belongs to the selected completion
+
+When direct WebSocket preparation injects a stored response anchor, the service
+MUST snapshot that anchor's context coverage before the next asynchronous
+operation. The prepared request and its completed continuity record MUST inherit
+that snapshot. A completion recorded from a client-anchored delta MUST NOT become
+proof of complete context merely because its response ID was injected by the
+proxy. Concurrent updates to session continuity MUST NOT replace the coverage of
+the anchor already selected for the request.
+
+#### Scenario: Injection preserves incomplete context across a completed turn
+- **WHEN** a client-anchored delta completes and the proxy injects its anchor into a matching follow-up
+- **AND** that follow-up completes
+- **THEN** a later explicitly anchored resend of that stored prefix remains ineligible for anchorless replay
+- **AND** an upstream continuity miss reaches the native client as sanitized `previous_response_not_found`
+
+#### Scenario: Admission overlaps another completion
+- **WHEN** a request selects an anchor and asynchronous admission updates shared continuity to another completion
+- **THEN** the prepared request retains the original selected anchor's coverage
+
+#### Scenario: Complete context remains complete
+- **WHEN** the selected anchor was recorded from complete context
+- **THEN** the injected request retains complete coverage and existing safe full-resend recovery remains available

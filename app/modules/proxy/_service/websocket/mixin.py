@@ -3319,6 +3319,7 @@ class _WebSocketMixin:
         goal_restart_full_resend = _request_allows_unavailable_legacy_owner_abandonment(responses_payload)
         restart_affinity_payload = responses_payload
         session_anchor = None
+        session_anchor_covers_context = False
         if not goal_restart_full_resend:
             session_anchor = _websocket_continuity_anchor_for_payload(
                 continuity_state,
@@ -3327,6 +3328,11 @@ class _WebSocketMixin:
                 api_key_id=refreshed_api_key.id if refreshed_api_key is not None else None,
             )
         if session_anchor is not None:
+            # Keep the coverage of this selected completion across admission
+            # awaits, which can let another turn update shared continuity.
+            session_anchor_covers_context = bool(
+                continuity_state is not None and continuity_state.last_completed_input_covers_context
+            )
             original_input_items = cast(list[JsonValue], responses_payload.input)
             original_input_item_count = len(original_input_items)
             original_input_fingerprint = _facade()._fingerprint_input_items(original_input_items)
@@ -3414,7 +3420,9 @@ class _WebSocketMixin:
         request_state.durable_capability_lineage_required = capability_route.require_security_work_authorized
         original_full_resend_input: JsonValue | None = None
         request_state.input_covers_anchor_context = (
-            client_previous_response_id is None or client_full_resend_retry_safe or session_anchor is not None
+            session_anchor_covers_context
+            if session_anchor is not None
+            else client_previous_response_id is None or client_full_resend_retry_safe
         )
         if session_anchor is not None:
             request_state.proxy_injected_previous_response_id = True
