@@ -2,7 +2,7 @@
 
 ### Requirement: Native WebSocket consumers control upstream reads
 
-The adapter MUST require `websocket_receive_credit_v1` before dispatch. Each socket MUST allow only one unconsumed data message across IPC. The helper MUST pause upstream reads when its receive credit is exhausted and resume after Python returns credit. Accepted frames MUST NOT be discarded on consumer delay or helper exit. Local send, close, cancellation and sibling operations MUST remain available during the pause. Pausing MUST NOT produce a pong timeout caused by the locally paused reader. Concurrent receives MUST serialize credit ownership. Cancellation MUST finish a dispatched credit return before propagating, and ambiguous dispatch failure MUST terminate that socket without replaying credit. An unavailable native permit MUST fail the socket without panicking the helper.
+The adapter MUST require `websocket_receive_credit_v1` before dispatch. Each socket MUST allow only one unconsumed data message across IPC. The helper MUST pause upstream reads when its receive credit is exhausted and resume after Python returns credit. Accepted frames MUST NOT be discarded on consumer delay or helper exit. Local send, close, cancellation and sibling operations MUST remain available during the pause. Pausing MUST NOT produce a pong timeout caused by the locally paused reader. Concurrent receives MUST serialize credit ownership. Cancellation MUST finish a dispatched credit return within the existing command timeout before propagating, and ambiguous dispatch failure MUST terminate that socket without replaying credit. An unavailable native permit MUST fail the socket without panicking the helper.
 
 #### Scenario: Fast upstream and slow consumer
 

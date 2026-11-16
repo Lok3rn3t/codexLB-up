@@ -125,7 +125,7 @@ async def test_native_close_diagnostics_exclude_private_reason(caplog) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("interruption", ["failure", "timeout", "cancel"])
+@pytest.mark.parametrize("interruption", ["failure", "timeout", "cancel", "abort_cancel"])
 async def test_credit_return_recovers_without_duplicate_dispatch(
     interruption: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -133,10 +133,13 @@ async def test_credit_return_recovers_without_duplicate_dispatch(
     if not helper:
         pytest.skip("set CODEX_LB_NATIVE_EGRESS_TEST_BINARY to the candidate-built worker")
 
+    upstream_closed = asyncio.Event()
+
     async def upstream(socket):
         for text in ("one", "two", "three"):
             await socket.send(text)
         await socket.wait_closed()
+        upstream_closed.set()
 
     async with serve(upstream, "127.0.0.1", 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -153,19 +156,26 @@ async def test_credit_return_recovers_without_duplicate_dispatch(
         sent = asyncio.Event()
         release = asyncio.Event()
         credit_calls = 0
+        cancel_dispatched = False
         if interruption == "timeout":
             monkeypatch.setattr(native_egress_module, "_NATIVE_WEBSOCKET_COMMAND_TIMEOUT_SECONDS", 0.1)
 
         async def interrupted(process, generation, command):
-            nonlocal credit_calls
+            nonlocal credit_calls, cancel_dispatched
             if command.get("type") == "websocket_consumed":
                 credit_calls += 1
                 await original(process, generation, command)
-                if credit_calls == 1 and interruption == "failure":
+                if credit_calls == 1 and interruption in {"failure", "abort_cancel"}:
                     raise RuntimeError("injected post-write drain failure")
                 if credit_calls == 1 and interruption in {"cancel", "timeout"}:
                     sent.set()
                     await release.wait()
+                return
+            if command.get("type") == "cancel" and interruption == "abort_cancel":
+                sent.set()
+                await release.wait()
+                await original(process, generation, command)
+                cancel_dispatched = True
                 return
             await original(process, generation, command)
 
@@ -192,6 +202,13 @@ async def test_credit_return_recovers_without_duplicate_dispatch(
                 release.set()
                 with pytest.raises(asyncio.CancelledError):
                     await receiving
+                if interruption == "abort_cancel":
+                    assert cancel_dispatched
+                    assert not client._streams
+                    with pytest.raises(Exception, match="receive credit dispatch failed"):
+                        await socket.receive()
+                    await asyncio.wait_for(upstream_closed.wait(), 2)
+                    return
                 assert (await asyncio.wait_for(socket.receive(), 2)).text == "two"
                 assert credit_calls == 1
                 assert (await asyncio.wait_for(socket.receive(), 2)).text == "three"

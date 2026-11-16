@@ -508,19 +508,9 @@ class NativeEgressWebSocket:
                     "native websocket receive credit dispatch failed",
                     failure_phase="helper_write",
                 )
-                try:
-                    await asyncio.wait_for(
-                        self._client._abort_request(self._request_id, self._generation, self._events),
-                        timeout=_NATIVE_CANCEL_TIMEOUT_SECONDS,
-                    )
-                except (TimeoutError, NativeEgressError):
-                    pass
-                finally:
-                    self._pump_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await self._pump_task
-                    self._credit_dispatch_failure = failure
-                    self._finish()
+                cancellation = await _await_cleanup_deferring_cancellation(self._abort_failed_receive_credit(failure))
+                if cancellation is not None:
+                    raise cancellation
                 raise failure from exc
             self._return_receive_credit = False
             if cancellation is not None:
@@ -530,6 +520,21 @@ class NativeEgressWebSocket:
             raise item
         self._return_receive_credit = item.kind in {"text", "binary"}
         return item
+
+    async def _abort_failed_receive_credit(self, failure: NativeEgressTransportError) -> None:
+        try:
+            await asyncio.wait_for(
+                self._client._abort_request(self._request_id, self._generation, self._events),
+                timeout=_NATIVE_CANCEL_TIMEOUT_SECONDS,
+            )
+        except (TimeoutError, NativeEgressError):
+            pass
+        finally:
+            self._pump_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._pump_task
+            self._credit_dispatch_failure = failure
+            self._finish()
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         if self._completed or self._closing:

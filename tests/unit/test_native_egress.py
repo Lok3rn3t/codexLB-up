@@ -5,6 +5,7 @@ import contextlib
 import os
 import stat
 from pathlib import Path
+from typing import cast
 
 import anyio
 import pytest
@@ -464,6 +465,33 @@ for line in sys.stdin:
             str(index).encode() + b"," for index in range(256)
         )
     finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_helper_exit_preserves_accepted_websocket_frame_before_terminal() -> None:
+    client = SubprocessNativeEgressClient(Path("unused-helper"))
+    events: asyncio.Queue[dict[str, object] | BaseException] = asyncio.Queue(maxsize=4)
+    events.put_nowait({"type": "websocket_text", "text": "accepted frame"})
+    client._streams["socket"] = (0, events)
+    socket = native_egress_module.NativeEgressWebSocket(
+        status=101,
+        headers=(),
+        client=client,
+        process=cast(asyncio.subprocess.Process, object()),
+        request_id="socket",
+        generation=0,
+        events=events,
+    )
+    # Fail the helper before its already accepted event reaches the socket pump.
+    client._fail_generation(0, NativeEgressTransportError("helper exited", failure_phase="helper_exit"))
+    try:
+        assert (await asyncio.wait_for(socket.receive(), 1)).text == "accepted frame"
+        with pytest.raises(NativeEgressTransportError, match="helper exited"):
+            await socket.receive()
+        assert not client._streams
+    finally:
+        await socket.close()
         await client.aclose()
 
 
