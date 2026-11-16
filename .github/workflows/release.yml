@@ -220,6 +220,13 @@ jobs:
           bash scripts/check-release-container.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}" linux/amd64
           bash scripts/check-release-container.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}" linux/arm64
 
+      - name: Verify upgrade from original beta.9
+        env:
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.digest }}
+          EXPECTED_VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          bash scripts/check-upstream-upgrade.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}"
+
       - name: Scan Docker image with Trivy (SARIF)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:

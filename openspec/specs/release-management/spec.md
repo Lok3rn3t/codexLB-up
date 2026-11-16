@@ -229,11 +229,12 @@ the fork distribution.
 
 ### Requirement: Fork release tags publish Python packages independently
 
-Tag pushes and manual dispatches SHALL verify versions, build the frontend
-and Python packages, publish using the `pypi` environment, and create a GitHub
-Release after PyPI publication succeeds. Prerelease tags SHALL remain
-prereleases. Fork publication SHALL NOT require upstream container publishing
-or release-please credentials.
+Tag pushes and manual dispatches SHALL verify release versions and publish
+the fork's Python distribution, Docker images, and Helm chart using the fork's
+registries. The GitHub Release SHALL publish only after all required channels
+succeed. Stable tags SHALL publish stable aliases and a non-prerelease GitHub
+Release; prerelease tags SHALL remain prereleases. This flow SHALL NOT require
+upstream release-please credentials.
 
 #### Scenario: a beta tag publishes the fork
 
@@ -242,6 +243,15 @@ or release-please credentials.
 - **THEN** PyPI contains `codexLB-up` version `1.25.0b10`
 - **AND** GitHub contains a prerelease with wheel and source distribution
 - **AND** the installation instructions select the fork distribution
+
+#### Scenario: a stable tag publishes the complete fork release
+
+- **GIVEN** tag `v1.25.0` identifies consistent fork version metadata
+- **WHEN** the Release workflow completes successfully
+- **THEN** PyPI contains `codexLB-up` version `1.25.0`
+- **AND** GHCR contains the fork image for Linux amd64 and arm64 with a `latest` alias
+- **AND** the Helm chart defaults to the fork image
+- **AND** GitHub contains a stable release with English installation instructions
 
 ### Requirement: Fork CI follows the default branch
 
@@ -276,3 +286,56 @@ container, and prevent subsequent in-container validation from running.
 - **THEN** the smoke check exits unsuccessfully
 - **AND** prints container logs and removes the container
 - **AND** does not execute the remaining validation commands
+
+### Requirement: Release containers pass startup smoke checks
+
+Published container images SHALL be smoke-tested for each released architecture
+before GitHub release metadata is published. Checks SHALL verify the application
+version, bundled native egress executable, startup migrations, health endpoint,
+and bundled dashboard. Failed container checks SHALL fail the release workflow.
+
+#### Scenario: a released container starts with a fresh database
+
+- **GIVEN** a built fork image for a released architecture
+- **WHEN** the container starts with an isolated empty data directory
+- **THEN** its health endpoint and dashboard become available
+- **AND** its application version matches the release tag
+- **AND** its native egress executable is present and runnable
+
+### Requirement: Original beta.9 container upgrade compatibility
+
+The distribution SHALL verify the upgrade from the original `codex-lb==1.25.0b9`
+Docker image using an immutable source image reference and disposable SQLite data
+created by that source image. The target image SHALL start through its normal
+entrypoint with the same data mount and encryption key. The verification SHALL
+cover encrypted account credentials, API keys and their account assignments,
+dashboard authentication and settings, usage history, and request history. The
+verification SHALL fail on data loss, unreadable credentials, schema drift, or
+unhealthy startup. It SHALL also verify a subsequent restart. CI and release
+image promotion SHALL require this check to pass.
+
+#### Scenario: Replace the original image while preserving existing data
+
+- **GIVEN** the pinned original beta.9 image has created a populated SQLite volume
+- **WHEN** the target image starts with that volume using the existing migration path
+- **THEN** the original records and encryption key are preserved and credentials remain decryptable
+- **AND** schema checks and application readiness succeed before and after restart
+- **AND** the upgrade does not change the database engine
+
+### Requirement: Single-container upgrade instructions
+
+The distribution SHALL document a single-container upgrade that preserves the
+existing mounts, environment, published ports, and networks. The instructions
+SHALL require a consistent backup of existing data and the encryption key before
+cutover, explain that normal startup may update the existing database schema,
+and provide rollback using the old image and pre-upgrade backup. An operator
+prohibiting schema changes SHALL be able to keep startup migrations disabled;
+the instructions SHALL explain that incompatible schemas then prevent startup.
+
+#### Scenario: Existing Docker deployment switches distributions
+
+- **GIVEN** an operator runs the original beta.9 image through `docker run`
+- **WHEN** the operator follows the upgrade instructions
+- **THEN** only the application image is replaced and the previous configuration and persistent data are retained
+- **AND** a backup made before schema updates is available for rollback
+- **AND** no PostgreSQL major-version conversion is required or started

@@ -61,6 +61,17 @@ Open [localhost:2455](http://localhost:2455) → Add account → Done.
 Accessing the dashboard remotely for the first time? You need a one-time bootstrap token —
 see [Getting started](https://soju06.github.io/codex-lb/getting-started/).
 
+### Migrating from the original codex-lb
+
+For `codex-lb==1.25.0b9` (`ghcr.io/soju06/codex-lb:1.25.0-beta.9`),
+replace the application image with `ghcr.io/lok3rn3t/codexlb-up:1.25.0`.
+Stop the old container and back up the entire data directory first. Keep the
+existing mounts, `encryption.key`, environment, ports, and networks: these retain
+your accounts, dashboard login, API keys, settings, and history. Normal startup
+applies the existing schema updates; no SQLite-to-PostgreSQL conversion is needed.
+Follow the [Docker migration and rollback instructions](docs/distribution.md#upgrading-from-the-original-beta9)
+before changing the image. Do not run both versions against the same SQLite data.
+
 ## Client Setup
 
 Point any OpenAI-compatible client at codex-lb. For Codex CLI, `~/.codex/config.toml`:

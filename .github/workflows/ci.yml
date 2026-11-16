@@ -705,6 +705,11 @@ jobs:
           cache-from: type=gha,scope=${{ env.DOCKER_CACHE_SCOPE }}
           cache-to: type=gha,mode=max,scope=${{ env.DOCKER_CACHE_SCOPE }}
 
+      - name: Verify upgrade from original beta.9
+        run: |
+          version="$(python -c 'import app; print(app.__version__)')"
+          bash scripts/check-upstream-upgrade.sh codex-lb:ci "${version}"
+
       - name: Scan Docker image with Trivy (SARIF)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:

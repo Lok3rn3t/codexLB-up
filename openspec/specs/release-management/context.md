@@ -32,3 +32,27 @@ lint passed. Fork wheel/sdist passed Twine, included 84 JS and one CSS asset,
 and the installed-wheel smoke passed migrations, CLI, health, and static routes.
 Actionlint passed for all changed workflows. The complete frontend suite is
 also rerun after the assertion fixes, with its result recorded in release notes.
+
+## Stable release and original beta.9 upgrade
+
+The stable 1.25.0 flow extends the first prerelease to Docker amd64/arm64 and
+Helm publishing for this fork. Image promotion requires startup smoke checks,
+the Trivy severity gate, and an upgrade check from the immutable upstream beta.9
+image. PyPI and GitHub publication follow the required image/chart checks.
+
+The user explicitly requested an additional README migration block. A short
+Quick Start subsection links to the full backup, cutover and rollback procedure
+in `docs/distribution.md`. The original data mount and encryption key must stay
+together; the database engine and PostgreSQL version do not change.
+
+The original `codex-lb==1.25.0b9` schema predates three inherited revisions.
+All 261 original revision files remain unchanged. A local isolated upgrade
+using the verified published source preserved common-column contents across
+67 retained tables, including encrypted credentials, password/TOTP, API keys,
+settings and history. The container gate separately exercises both real images
+and a subsequent restart on one disposable volume without external networking.
+The removed subscription-overflow storage is an intentional upstream retirement;
+the old app cannot safely restart against the upgraded schema. Rollback must
+use the old image and pre-upgrade backup. Disabling schema migrations causes
+the expected older-schema startup refusal; stamping or replacing the database
+is not an upgrade workaround.
