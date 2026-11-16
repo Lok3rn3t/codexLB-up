@@ -5,7 +5,7 @@
 - [x] Add native and product-route regressions, including burst delivery and privacy.
 - [x] Run focused Python tests, Rust tests/clippy/fmt and strict change validation locally.
 - [x] Synchronize normative specification and context.
-- [ ] Complete current-head Linux CI and archive the verified change.
+- [x] Complete current-head Linux CI and archive the verified change.
 
 ## Local verification
 
