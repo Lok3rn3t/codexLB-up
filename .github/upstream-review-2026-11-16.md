@@ -46,3 +46,30 @@ without required context. The updated route selection passes 49 cases and the
 related unit selection passes 98. Evidence is recorded in
 `honor-poisoned-http-fallback-anchors`. This is context-preservation coverage,
 not proof that all reported production retries have been diagnosed or removed.
+
+## Follow-up: replacement 1.26.0-beta.1 candidate
+
+The owner requested a replacement of the withdrawn beta.1 publication and
+explicitly approved replacing its GitHub, Docker and Helm tags without a new
+PyPI upload. The original tag pointed to `3a6b1187d03010bae447a9c654a2c8a066a6469c`;
+the retained image index was
+`sha256:f4495212a108cb527b2b7f9a7847de5982fa48e0b1b4565981113d535a8cbc6d`.
+
+Selected after code and issue review:
+
+- PR #2711 at `a39d2ff98490bd3f88b1565ce253dc1d7bb073f9`: negotiated
+  one-frame receive credit to prevent native WebSocket burst queue loss. The
+  fork adaptation retains only allowlisted phases, close codes and counters;
+  arbitrary exception text and close reasons are excluded from diagnostics.
+- Remaining PR #2731 at `ace4d91eb8523b21fd253b0ef91821b8e9991f44`: inherit
+  context coverage from the selected injected anchor, additionally snapshotting
+  it before admission awaits to avoid racing another completion.
+- PR #2569 at `778e10f4ab7111c7ab5539b448df2763fabc1987`, related to issue
+  #2563: preserve developer messages in Responses input for continuation.
+
+PR #2709 is not layered over #2711: they offer overlapping queue fixes.
+Broader changes such as #2732 payload-memory limits and #2665 dynamic reasoning
+policy were deferred to avoid mixing unrelated behavior into transport recovery.
+Each selected fix has its own OpenSpec provenance and regression evidence.
+These are reproduced code defects, not proof that every observed production
+1011 or missing-anchor error shares the same cause. Production was not changed.

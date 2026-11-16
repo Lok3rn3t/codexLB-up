@@ -10,6 +10,10 @@ on:
       tag:
         description: "Release tag (e.g. v1.19.0 or v1.19.0-beta.1)"
         required: true
+      skip_pypi:
+        description: "Rebuild prerelease artifacts without uploading a previously used PyPI version"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
@@ -34,6 +38,7 @@ jobs:
       is_prerelease: ${{ steps.metadata.outputs.is_prerelease }}
       pypi_version: ${{ steps.metadata.outputs.pypi_version }}
       make_latest: ${{ steps.metadata.outputs.make_latest }}
+      publish_pypi: ${{ steps.metadata.outputs.publish_pypi }}
 
     steps:
       - name: Checkout release tag
@@ -45,7 +50,12 @@ jobs:
       - name: Resolve tag metadata
         id: metadata
         shell: bash
-        run: python -m scripts.release_metadata --tag "${RELEASE_TAG}"
+        env:
+          SKIP_PYPI: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_pypi }}
+        run: |
+          args=()
+          if [ "${SKIP_PYPI}" = "true" ]; then args+=(--skip-pypi); fi
+          python -m scripts.release_metadata --tag "${RELEASE_TAG}" "${args[@]}"
 
   build:
     name: Build (sdist + wheel)
@@ -125,7 +135,8 @@ jobs:
 
   publish-to-pypi:
     name: Publish to PyPI
-    needs: [build, docker-image, helm-chart]
+    needs: [build, docker-image, helm-chart, release-metadata]
+    if: needs.release-metadata.outputs.publish_pypi == 'true'
     runs-on: ubuntu-24.04
 
     permissions:
@@ -397,7 +408,9 @@ jobs:
     name: Create GitHub Release
     needs: [publish-to-pypi, docker-image, helm-chart, release-metadata]
     if: >-
-      needs.publish-to-pypi.result == 'success' &&
+      !cancelled() &&
+      (needs.publish-to-pypi.result == 'success' ||
+       (needs.publish-to-pypi.result == 'skipped' && needs.release-metadata.outputs.publish_pypi == 'false')) &&
       needs.docker-image.result == 'success' &&
       needs.helm-chart.result == 'success' &&
       needs.release-metadata.result == 'success'
@@ -508,6 +521,7 @@ jobs:
           TAG_NAME: ${{ steps.prev_tag.outputs.tag_name }}
           IS_PRERELEASE: ${{ needs.release-metadata.outputs.is_prerelease }}
           PYPI_VERSION: ${{ needs.release-metadata.outputs.pypi_version }}
+          PUBLISH_PYPI: ${{ needs.release-metadata.outputs.publish_pypi }}
         run: |
           set -euo pipefail
           TAG_VERSION="${TAG_NAME#v}"
@@ -516,7 +530,9 @@ jobs:
             echo "## Install / Run"
             echo '```bash'
             if [ "${IS_PRERELEASE}" = "true" ]; then
-              echo "uvx --from \"codexLB-up==${PYPI_VERSION}\" codex-lb"
+              if [ "${PUBLISH_PYPI}" = "true" ]; then
+                echo "uvx --from \"codexLB-up==${PYPI_VERSION}\" codex-lb"
+              fi
               echo "docker pull ghcr.io/${GITHUB_REPOSITORY,,}:${TAG_VERSION}"
               echo "helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${TAG_VERSION} --devel"
             else

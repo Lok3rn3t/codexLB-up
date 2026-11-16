@@ -92,3 +92,12 @@ Trivy, PyPI, and GitHub publication passed. Downloaded GitHub, PyPI, and build
 artifact checksums match; GHCR aliases point to the verified multiarchitecture
 index. Detailed evidence is recorded in
 `openspec/changes/archive/2026-11-16-publish-full-fork-release/verification.md`.
+
+## Explicit container prerelease rebuild
+
+Manual Release dispatch can set `skip_pypi=true` for a prerelease when its
+Python filenames were previously published and cannot be reused. This publishes
+GitHub assets, Docker and Helm after the normal gates, without advertising a
+new PyPI package. Stable releases reject the option. Replacing an existing tag
+is a separate owner decision; retain the old commit and image digest in the
+release notes and avoid concurrent tag-triggered and manual publication runs.
