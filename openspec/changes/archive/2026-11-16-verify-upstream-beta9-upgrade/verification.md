@@ -12,6 +12,15 @@
 - Scoped Ruff, formatting, Ty, Bash syntax, actionlint, strict documentation
   build and README simplicity budgets passed.
 
-The cloud Docker check remains pending. It must use the actual pinned source
-image, target normal entrypoint, shared disposable volume, no external network,
-and a subsequent restart before this change is archived.
+The actual cloud Docker check passed on commit
+`c8ac36d7044372e8f1c48eca702e6ed508955d63` in CI job `133185472572`.
+It used the pinned original image and a loaded target image on Linux amd64 with
+one disposable volume and no external network. Source verification, target
+verification, and target verification after restart all passed. The same Docker
+job's Trivy gate passed. The overall CI run separately found one HTTP bridge
+test failure; that is outside this upgrade check and must be resolved before
+the stable release.
+
+The maintainer subsequently requested removal of all 15 existing Actions runs.
+Run metadata and this job's logs were preserved locally before that cleanup.
+The upgrade check remains required in subsequent CI and release runs.

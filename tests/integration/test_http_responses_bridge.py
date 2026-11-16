@@ -16821,7 +16821,7 @@ async def test_v1_responses_http_bridge_quarantines_reattach_that_streams_withou
     account = await _get_account(account_id)
     service = get_proxy_service_for_app(app_instance)
     http_bridge_quarantine_module._http_bridge_quarantine_registry(service).clear()
-    first_upstream = _ClosingInterruptedCustomToolUpstreamWebSocket("resp_quarantine_source")
+    first_upstream = _ClosingBridgeUpstreamWebSocket("resp_quarantine_source")
     wedged_upstream = _EventsWithoutCreatedUpstreamWebSocket("resp_quarantine_wedge")
     fresh_upstream = _FakeBridgeUpstreamWebSocket("resp_quarantine_fresh")
     upstreams = [first_upstream, wedged_upstream, fresh_upstream]
@@ -16854,35 +16854,9 @@ async def test_v1_responses_http_bridge_quarantines_reattach_that_streams_withou
 
     session_headers = {"x-codex-session-id": "quarantine-silent-reattach"}
     historical_input = [
-        {"role": "user", "content": [{"type": "input_text", "text": "leading question"}]},
-        {
-            "type": "additional_tools",
-            "role": "developer",
-            "tools": [{"type": "custom", "name": "shell"}],
-        },
-        {
-            "type": "message",
-            "role": "developer",
-            "content": [{"type": "input_text", "text": "canonical Lite instructions"}],
-        },
         {
             "role": "user",
             "content": [{"type": "input_text", "text": "first question"}],
-        },
-        {
-            "type": "custom_tool_call",
-            "call_id": "call_historical_shell",
-            "name": "shell",
-            "input": "printf historical",
-        },
-        {
-            "role": "developer",
-            "content": [{"type": "input_text", "text": "historical control"}],
-        },
-        {
-            "type": "custom_tool_call_output",
-            "call_id": "call_historical_shell",
-            "output": "historical",
         },
     ]
     first = await asyncio.wait_for(
@@ -16899,27 +16873,17 @@ async def test_v1_responses_http_bridge_quarantines_reattach_that_streams_withou
     )
     assert first.status_code == 200, first.text
 
-    full_resend = [
-        *historical_input,
-        {
-            "type": "custom_tool_call",
-            "call_id": "call_custom_shell",
-            "name": "shell",
-            "input": "pwd",
-        },
-        {
-            "type": "custom_tool_call_output",
-            "call_id": "call_custom_shell",
-            "output": "/workspace",
-        },
-    ]
+    fresh_followup = {"role": "user", "content": [{"type": "input_text", "text": "follow-up question"}]}
+    # This incomplete resend still needs the durable anchor to carry the prior
+    # assistant output. Its attempted reattach is what wedges below.
+    anchored_resend = [*historical_input, fresh_followup]
     second = await asyncio.wait_for(
         async_client.post(
             "/v1/responses",
             json={
                 "model": "gpt-5.1",
                 "instructions": "Return exactly OK.",
-                "input": full_resend,
+                "input": anchored_resend,
             },
             headers=session_headers,
         ),
@@ -16931,7 +16895,7 @@ async def test_v1_responses_http_bridge_quarantines_reattach_that_streams_withou
     assert second.status_code != 200
     assert len(wedged_upstream.sent_text) == 1
     wedged_payload = json.loads(wedged_upstream.sent_text[0])
-    assert wedged_payload["previous_response_id"] == "resp_bridge_custom_1"
+    assert wedged_payload["previous_response_id"] == "resp_quarantine_source_1"
     quarantined_entries = [
         entry
         for entry in http_bridge_quarantine_module._http_bridge_quarantine_registry(service).values()
@@ -16940,6 +16904,9 @@ async def test_v1_responses_http_bridge_quarantines_reattach_that_streams_withou
     assert len(quarantined_entries) == 1
     assert quarantined_entries[0].reason == "reattach_missing_response_created"
 
+    # The fresh attempt must include the actual completed output. A fabricated
+    # tool-call pair or a user-only suffix cannot stand in for that history.
+    full_resend = [*historical_input, *first.json()["output"], fresh_followup]
     third = await asyncio.wait_for(
         async_client.post(
             "/v1/responses",
@@ -16977,8 +16944,8 @@ async def test_v1_responses_http_bridge_quarantined_unsafe_full_resend_fails_clo
     """A quarantined anchor must not be bypassed by an incomplete resend.
 
     A full resend whose fresh suffix omits the prior output cannot safely run
-    without the anchor. It therefore keeps the proxy-owned anchor and returns
-    the existing poisoned-anchor response before dispatching upstream.
+    without the anchor. It therefore returns the existing poisoned-anchor
+    response during planning, before dispatching upstream.
     """
     _install_bridge_settings_with_limits(monkeypatch, enabled=True, instance_id=socket.gethostname())
     account_id = await _import_account(
@@ -17131,8 +17098,8 @@ async def test_v1_responses_http_bridge_quarantined_unsafe_full_resend_fails_clo
         timeout=_TEST_SYNC_TIMEOUT_SECONDS,
     )
 
-    # The incomplete resend must retain the dead anchor and fail before any
-    # fresh upstream socket is used; sending it unanchored would lose context.
+    # The incomplete resend must fail before any fresh upstream socket is used;
+    # sending it unanchored would lose context.
     assert third.status_code == 404, third.text
     assert third.json()["error"]["code"] == "bridge_previous_response_not_found"
     assert connect_count == 2

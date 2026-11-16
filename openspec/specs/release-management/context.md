@@ -56,3 +56,9 @@ the old app cannot safely restart against the upgraded schema. Rollback must
 use the old image and pre-upgrade backup. Disabling schema migrations causes
 the expected older-schema startup refusal; stamping or replacing the database
 is not an upgrade workaround.
+
+The real Docker upgrade and restart check passed on `c8ac36d7` in
+CI job `133185472572`. Its evidence was preserved locally before the maintainer
+requested removal of the old Actions runs; subsequent CI reruns the same gate.
+This confirms the original beta.9 image-to-fork transition on disposable Linux
+amd64 SQLite data; no production database was accessed or modified.

@@ -29,3 +29,20 @@
 The route/unit counts refer to the targeted run logs reviewed during this
 change. Strict specification validation and diff checks were rerun after the
 canonical specification was synchronized. No production behavior was measured.
+
+## Full-suite fixture correction
+
+The first complete bridge CI run found one additional fixture inconsistency:
+the positive silent-reattach quarantine test supplied a Responses-Lite bundle
+after an earlier user item, a prefix already classified as unverified by the
+existing Lite tests. It also omitted the actual completed assistant output.
+Its old success expectation therefore depended on the removed unsafe bypass.
+
+The positive test now uses a normal completed assistant response, deliberately
+omits that output in the second request to exercise anchored reattachment and
+quarantine, then supplies the actual returned output in the third request.
+The third request still must complete successfully without an anchor. The
+separate incomplete-history test still requires refusal before dispatch.
+Both focused tests pass. The broader quarantine, split-record and Responses-Lite
+classification selection passes 57 cases (209 deselected). Ruff, formatting,
+and Ty pass. Runtime and normative contracts are unchanged by this correction.

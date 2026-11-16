@@ -12,4 +12,4 @@
 ## 3. Verify
 
 - [x] 3.1 Pass focused validation and strict OpenSpec validation.
-- [ ] 3.2 Pass the actual Docker upgrade check in GitHub CI and archive the verified change.
+- [x] 3.2 Pass the actual Docker upgrade check in GitHub CI and archive the verified change.
