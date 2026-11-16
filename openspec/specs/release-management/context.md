@@ -85,3 +85,10 @@ still depends on that promotion job. The same readiness budget and native-worker
 assertions remain in place. QEMU is used only to build the multiarchitecture image.
 GitHub lists `ubuntu-24.04-arm` as a
 [standard ARM64 runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
+Stable `v1.25.0` was published from `5007c731` in successful release run
+`43854085727`. Both native platform checks, original beta.9 upgrade/restart,
+Trivy, PyPI, and GitHub publication passed. Downloaded GitHub, PyPI, and build
+artifact checksums match; GHCR aliases point to the verified multiarchitecture
+index. Detailed evidence is recorded in
+`openspec/changes/archive/2026-11-16-publish-full-fork-release/verification.md`.
