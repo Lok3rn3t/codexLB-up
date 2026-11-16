@@ -31,3 +31,18 @@ commits and ownership constraints are recorded in the OpenSpec change
 `preserve-codex-reconnect-context`. These changes preserve the client's canonical
 recovery signal; they do not promise that a genuinely lost response anchor will
 never produce `previous_response_not_found`.
+
+The release also adapts PR #2627 (related to #2486) to allow an otherwise
+eligible proven conversation owner through transient backoff without bypassing
+quota, account status, security, file ownership, or scope constraints. Its
+regression reproduced the owner-unavailable failure before the fix; 455 focused
+tests passed afterward. Evidence is archived in
+`openspec/changes/archive/2026-11-16-recover-owned-session-backoff/`.
+
+PR #2628 adds scoped fallback-anchor fencing and incomplete-history refusal.
+All 48 complete-history split-record cases already passed on this fork's
+baseline; the newly reproduced failure was an incomplete resend dispatched
+without required context. The updated route selection passes 49 cases and the
+related unit selection passes 98. Evidence is recorded in
+`honor-poisoned-http-fallback-anchors`. This is context-preservation coverage,
+not proof that all reported production retries have been diagnosed or removed.

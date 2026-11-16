@@ -6360,7 +6360,7 @@ ordinary selection, and MUST NOT reclassify local capacity or overload codes
 
 When an HTTP bridge session proves silent/wedged, the proxy MUST quarantine its session key for a bounded window so later requests stop attaching to it. A session proves silent/wedged when either (a) a pending request being failed or retired carried a proxy-injected `previous_response_id`, had sent `response.create`, observed upstream response events, and never had `response.created` assigned, (b) the session key hits two consecutive eventless `missing_response_created_timeout` retires, or (c) the hard-affinity retry circuit for the key opens on an eventless poison-class failure (`stream_incomplete` or `stream_idle_timeout`), in which case the quarantine reason MUST be `retry_circuit_poisoned_anchor`. This holds for every path that fails or retires the request — partial stale-holder cleanup, the reader-failure funnel, and direct all-stale session retirement alike. The quarantine MUST be evaluated only when a request is already being failed or its session retired — never against a live owned turn — so a stream whose `response.created` was observed (including deferred-reasoning streams with long event gaps) MUST NOT be quarantined, and mere event silence during an owned live turn MUST NOT trigger quarantine by itself.
 
-While a session key is quarantined: an existing session under that key MUST NOT be selected for reuse (a new request detaches it and proceeds on a fresh session), and for durable-anchor selection a quarantined session that is still open MUST count as absent, exactly as if it were already gone. The quarantine registry verdict is authoritative for the key: any session under the key while the quarantine window is active — including a freshly created replacement whose own completion has not yet cleared the quarantine — is equally excluded from reuse and equally absent for anchor selection. A fresh reattach whose incoming payload already looks like a full conversation resend MUST NOT receive a proxy-injected durable anchor through any injection point — the fresh-reattach injection, session-state hydration of the durable anchor, or the session-level injection — so the dispatch goes upstream genuinely unanchored with the client's own untrimmed payload. A payload that does not look like a full resend (a genuine delta-only continuation) MUST still receive the durable anchor, because it has no other way to convey prior conversation state. When no anchor exists anywhere for such a payload — the client supplied none and durable continuity was abandoned — and the key carries poison evidence (an active poison quarantine, or a durable circuit row still recording the poison episode), planning MUST fail the request closed as `bridge_previous_response_not_found` instead of dispatching it unanchored as a new conversation.
+While a session key is quarantined: an existing session under that key MUST NOT be selected for reuse (a new request detaches it and proceeds on a fresh session), and for durable-anchor selection a quarantined session that is still open MUST count as absent, exactly as if it were already gone. The quarantine registry verdict is authoritative for the key: any session under the key while the quarantine window is active — including a freshly created replacement whose own completion has not yet cleared the quarantine — is equally excluded from reuse and equally absent for anchor selection. A fresh reattach whose incoming payload is verified to be a safe full conversation resend — its stored durable prefix is trimmable and its fresh suffix retains the prior output or exactly matches the pending tool-call manifest — MUST NOT receive a proxy-injected durable anchor through any injection point — the fresh-reattach injection, session-state hydration of the durable anchor, or the session-level injection — so the dispatch goes upstream genuinely unanchored with the client's own untrimmed payload. When a cumulative payload without an explicit client anchor cannot be verified to carry the required prior context and the durable anchor is quarantined, the request MUST fail closed as `bridge_previous_response_not_found` before upstream dispatch instead of sending incomplete history unanchored. A payload that does not look like a full resend (a genuine delta-only continuation) MUST still receive the durable anchor, because it has no other way to convey prior conversation state. When no anchor exists anywhere for such a payload — the client supplied none and durable continuity was abandoned — and the key carries poison evidence (an active poison quarantine, or a durable circuit row still recording the poison episode), planning MUST fail the request closed as `bridge_previous_response_not_found` instead of dispatching it unanchored as a new conversation.
 
 Quarantine state MUST be bounded and self-recovering: it is in-memory and session-scoped, expires by TTL (a live session that outlives its quarantine window MUST become reusable again), is cleared when a response completes on the same session key, and MUST NOT write account health or alter account selection.
 
@@ -6388,19 +6388,27 @@ A quarantine armed for reason `retry_circuit_poisoned_anchor` MUST remain in for
 #### Scenario: Next request after the wedge completes on the fresh path
 
 - **GIVEN** a session key quarantined after a reattach that streamed events without `response.created`
-- **WHEN** a later request arrives for the same key with a full-conversation-resend payload and no client `previous_response_id`
+- **WHEN** a later request arrives for the same key with a verified safe full-conversation-resend payload and no client `previous_response_id`
 - **THEN** the proxy does not inject the durable anchor for that request
 - **AND** the request is sent upstream unanchored with the client's own full payload
 - **AND** the request can complete normally instead of rebuilding the identical wedged reattach
 
-#### Scenario: Suppressed anchor does not come back through session state
+#### Scenario: Safe fresh resend does not rehydrate a suppressed anchor
 
-- **GIVEN** a quarantined session key and a full-conversation-resend payload whose stored durable prefix is trimmable but whose fresh suffix does not retain the prior output
+- **GIVEN** a quarantined session key and a full-conversation-resend payload whose stored durable prefix is trimmable and whose fresh suffix retains the prior output or exactly matches the pending tool-call manifest
 - **WHEN** the fresh-reattach durable-anchor injection is skipped because of the quarantine
 - **THEN** the durable anchor is not rehydrated into the fresh session's completed-response state
 - **AND** the session-level injection does not re-add the same anchor or trim the stored prefix
 - **AND** the dispatch goes upstream genuinely unanchored with the client's untrimmed payload
 - **AND** the suppression applies even when the fresh-reattach injection was already ineligible for other reasons (for example a conversation-scoped payload, a live alias session, or an active-owner forward that falls back to a local rebind)
+
+#### Scenario: Incomplete fresh resend is refused before dispatch
+
+- **GIVEN** a quarantined session key and a cumulative resend without an explicit client anchor
+- **AND** its stored durable prefix is trimmable but its fresh suffix omits the prior output and does not exactly match the pending tool-call manifest
+- **WHEN** the proxy plans recovery from the durable anchor
+- **THEN** the request fails with `bridge_previous_response_not_found` before upstream dispatch
+- **AND** the incomplete payload is not sent unanchored without the context its anchor provides
 
 #### Scenario: A poison quarantine outlives the cooldown that armed it
 
@@ -6451,7 +6459,7 @@ A quarantine armed for reason `retry_circuit_poisoned_anchor` MUST remain in for
 - **GIVEN** a hard-affinity bridge key whose retry circuit has one recorded eventless `stream_incomplete` failure
 - **WHEN** a second eventless `stream_incomplete` failure opens the circuit
 - **THEN** the session key is quarantined with reason `retry_circuit_poisoned_anchor`
-- **AND** a subsequent full-resend request on that key is dispatched unanchored through the existing fresh path
+- **AND** a subsequent verified safe full-resend request on that key is dispatched unanchored through the existing fresh path
 - **AND** a subsequent delta-only request on that key still receives the durable anchor
 
 #### Scenario: Retry circuit opened by clean closes leaves the key unquarantined
@@ -10985,3 +10993,37 @@ When an ordinary Codex WebSocket upstream ends after completed work and there ar
 #### Scenario: Active work or public route
 - **WHEN** an upstream ends while work is pending, replay-owned, or on the public OpenAI-compatible route
 - **THEN** its existing terminal and replay behavior is preserved
+
+### Requirement: Complete HTTP resends honor dead-anchor fences on acquisition fallback keys
+
+When a generated HTTP turn state resolves to one durable continuity record and
+session acquisition can use its scoped thread or legacy-session fallback key,
+the proxy MUST consult that fallback key's active anchor quarantine or abandonment
+tombstone before injecting a proxy-owned anchor and trimming input. A proven
+complete resend MUST retain its full input and resolved account owner. Incomplete
+history MUST fail closed; explicit client anchors MUST retain their existing
+validation, and fences MUST remain isolated by thread and API-key scope.
+
+#### Scenario: Complete history recovers across split durable records
+
+- **GIVEN** an old turn-state record retains an anchor and input prefix
+- **AND** its same-account acquisition fallback key fences that anchor
+- **WHEN** the client resends complete history through either HTTP Responses route
+- **THEN** the full input is dispatched on the resolved owner without the proxy-owned anchor
+- **AND** a subsequent continuation can complete
+
+#### Scenario: A cached miss is corrected on the next complete resend
+
+- **GIVEN** planning cached a retry-circuit miss before a fallback fence was written
+- **WHEN** submission discovers the fence and rejects the prepared anchor
+- **THEN** the next complete resend honors the known fence before anchor injection
+
+#### Scenario: Missing context cannot become a fresh conversation
+
+- **WHEN** the fenced request carries only a delta or incomplete cumulative history
+- **THEN** the proxy refuses the unsafe dispatch instead of dropping required context
+
+#### Scenario: Explicit anchors and unrelated scopes retain their contract
+
+- **WHEN** the request explicitly supplies an anchor or belongs to an unrelated thread or API key
+- **THEN** fallback handling does not silently remove its anchor or import another scope's fence

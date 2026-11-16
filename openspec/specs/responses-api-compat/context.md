@@ -336,3 +336,24 @@ Native Codex sends input deltas when a previous response anchors their earlier h
 A complete resend ending in a valid agent message can recover on its durable owner, preserving encrypted input and original item shape. This permission never authorizes account switching, replay after visible output, or recovery without a matching prefix and tool-call manifest. For example, a matching stored prefix, settled tool call and encrypted agent message are replayed on the same owner without the stale anchor; an unavailable owner yields an error instead of sending that body elsewhere.
 
 Client and upstream PR evidence is recorded in `openspec/changes/archive/2026-11-16-preserve-codex-reconnect-context/context.md`. No live provider outage is inferred from passing stubbed regressions.
+
+## HTTP fallback fences and complete resend verification
+
+A generated turn-state alias can refer to an older durable record while session
+acquisition falls back to a scoped thread or legacy-session key. Planning checks
+that destination's known quarantine or abandonment tombstone before injecting an
+anchor or trimming the supplied history. Submission retains its final fence
+check for evidence that arrives after planning, including a cached miss.
+
+For example, turn-state row T retains a 240-item prefix while thread B has
+abandoned that anchor. A verified 244-item resend can reach the original account
+with all 244 items and no proxy-injected anchor. If its suffix omits both the
+prior assistant output and the exact pending tool-call manifest, it cannot
+replace the anchor's context and is refused before upstream dispatch. Explicit
+client anchors and other thread/API-key scopes keep their existing contracts;
+the recovery does not merge historical durable rows or change the owner.
+
+The fork's baseline already passed all 48 split-record retry cases. They preserve
+compatibility coverage; the newly demonstrated regression was an incomplete
+quarantined resend dispatched without required prior context. These isolated
+tests do not establish the cause of individual production failures.
