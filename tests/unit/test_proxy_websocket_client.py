@@ -340,6 +340,48 @@ async def test_native_receive_failure_logs_safe_phase(caplog: pytest.LogCaptureF
     assert message.kind == "error"
     assert "native_websocket_receive_failure phase=transport" in caplog.text
     assert "private socket detail" not in caplog.text
+    assert "private socket detail" not in (message.error or "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["receive", "send_text", "send_bytes"])
+async def test_native_failure_redacts_unknown_phase(operation: str, caplog: pytest.LogCaptureFixture) -> None:
+    class NativeConnection(_FakeNativeWebSocket):
+        async def receive(self) -> NativeWebSocketMessage:
+            raise NativeEgressTransportError("private socket detail", failure_phase="private phase")
+
+        async def send_text(self, text: str) -> None:
+            raise NativeEgressTransportError("private socket detail", failure_phase="private phase")
+
+        async def send_bytes(self, data: bytes) -> None:
+            raise NativeEgressTransportError("private socket detail", failure_phase="private phase")
+
+    websocket = NativeUpstreamWebSocket(cast(Any, NativeConnection()))
+    if operation == "receive":
+        message = await websocket.receive()
+        detail = message.error or ""
+    else:
+        with pytest.raises(UpstreamWebSocketTransportError) as raised:
+            if operation == "send_text":
+                await websocket.send_text("payload")
+            else:
+                await websocket.send_bytes(b"payload")
+        detail = str(raised.value)
+    assert "phase=unknown" in detail
+    assert "phase=unknown" in caplog.text
+    for private in ("private socket detail", "private phase", "payload"):
+        assert private not in detail
+        assert private not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_native_consumer_backpressure_is_account_neutral() -> None:
+    class NativeConnection(_FakeNativeWebSocket):
+        async def receive(self) -> NativeWebSocketMessage:
+            raise NativeEgressTransportError("bounded queue exceeded", failure_phase="consumer_backpressure")
+
+    message = await NativeUpstreamWebSocket(cast(Any, NativeConnection())).receive()
+    assert message.error_code == "proxy_network_unavailable"
 
 
 @pytest.mark.asyncio

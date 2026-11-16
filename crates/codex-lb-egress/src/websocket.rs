@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use rustls::{ClientConfig, RootCertStore};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
+use tokio::sync::{Semaphore, mpsc};
 use tokio_rustls::TlsConnector;
 use tokio_tungstenite::Connector;
 use tokio_tungstenite::client_async_tls_with_config;
@@ -55,6 +55,7 @@ pub(crate) enum NativeWebSocketFailure {
     WebSocket(WebSocketError),
     Timeout,
     LivenessTimeout,
+    ReceiveCreditUnavailable,
     Output(std::io::Error),
 }
 
@@ -65,6 +66,9 @@ impl std::fmt::Display for NativeWebSocketFailure {
             Self::WebSocket(error) => write!(formatter, "{error}"),
             Self::Timeout => formatter.write_str("websocket connect timed out"),
             Self::LivenessTimeout => formatter.write_str("websocket pong timed out"),
+            Self::ReceiveCreditUnavailable => {
+                formatter.write_str("websocket receive credit unavailable")
+            }
             Self::Output(error) => write!(formatter, "{error}"),
         }
     }
@@ -84,9 +88,35 @@ impl From<std::io::Error> for NativeWebSocketFailure {
     }
 }
 
+fn consume_receive_credit(credit: &Semaphore) -> Result<(), NativeWebSocketFailure> {
+    credit
+        .try_acquire()
+        .map_err(|_| NativeWebSocketFailure::ReceiveCreditUnavailable)?
+        .forget();
+    Ok(())
+}
+
+#[cfg(test)]
+mod credit_tests {
+    use super::*;
+
+    #[test]
+    fn missing_credit_is_an_error_instead_of_a_panic() {
+        let credit = Semaphore::new(1);
+        assert!(consume_receive_credit(&credit).is_ok());
+        assert!(matches!(
+            consume_receive_credit(&credit),
+            Err(NativeWebSocketFailure::ReceiveCreditUnavailable)
+        ));
+        credit.add_permits(1);
+        assert!(consume_receive_credit(&credit).is_ok());
+    }
+}
+
 pub(crate) async fn execute_websocket(
     request: NativeWebSocketRequest,
     mut commands: mpsc::Receiver<WebSocketCommand>,
+    receive_credit: Arc<Semaphore>,
     output: &Output,
 ) -> Result<(), NativeWebSocketFailure> {
     let request_id = request.request_id.clone();
@@ -116,8 +146,17 @@ pub(crate) async fn execute_websocket(
     let mut awaiting_pong = None;
 
     loop {
+        let paused = request.receive_credit && receive_credit.available_permits() == 0;
+        if paused {
+            // We cannot read pongs while locally paused. Restart liveness on resume.
+            awaiting_pong = None;
+            next_ping
+                .as_mut()
+                .reset(tokio::time::Instant::now() + ping_interval.unwrap_or(dormant_timer));
+        }
         tokio::select! {
-            _ = &mut next_ping, if ping_interval.is_some() => {
+            _ = receive_credit.acquire(), if paused => {},
+            _ = &mut next_ping, if ping_interval.is_some() && !paused => {
                 let interval = ping_interval.expect("guarded ping interval");
                 next_ping.as_mut().reset(tokio::time::Instant::now() + interval);
                 if awaiting_pong.is_none() {
@@ -197,9 +236,12 @@ pub(crate) async fn execute_websocket(
                     }
                 }
             }
-            incoming = websocket.next() => {
+            incoming = websocket.next(), if !paused => {
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
+                        if request.receive_credit {
+                            consume_receive_credit(&receive_credit)?;
+                        }
                         let text = text.to_string();
                         let event = request
                             .interpret_responses
@@ -230,6 +272,9 @@ pub(crate) async fn execute_websocket(
                         }
                     }
                     Some(Ok(Message::Binary(data))) => {
+                        if request.receive_credit {
+                            consume_receive_credit(&receive_credit)?;
+                        }
                         emit(
                             output,
                             &NativeEvent::WebsocketBinary {
@@ -461,6 +506,15 @@ pub(crate) async fn emit_websocket_error(
         NativeWebSocketFailure::LivenessTimeout => (
             "native websocket pong timed out",
             "liveness_timeout",
+            false,
+            false,
+            None,
+            Vec::new(),
+            None,
+        ),
+        NativeWebSocketFailure::ReceiveCreditUnavailable => (
+            "native websocket receive credit unavailable",
+            "protocol",
             false,
             false,
             None,
