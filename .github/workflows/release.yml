@@ -316,6 +316,8 @@ jobs:
         with:
           name: helm-chart
           path: .helm-pkg/*.tgz
+          include-hidden-files: true
+          if-no-files-found: error
 
   create-github-release:
     name: Create GitHub Release
