@@ -4,7 +4,7 @@ import { getDateDisplayFormat, type DateDisplayFormat } from "@/hooks/use-date-f
 import i18n from "@/i18n";
 
 function t(key: string, options?: Record<string, unknown>): string {
-  return i18n.t(key, options);
+  return i18n.t(key, options ?? {});
 }
 
 function getIntlLocale(): string {

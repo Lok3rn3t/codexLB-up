@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
-FROM ghcr.io/astral-sh/uv:0.13.1 AS uv-bin
+FROM ghcr.io/astral-sh/uv:0.13.8 AS uv-bin
 
-FROM rust:1.99.0-slim-bookworm AS native-egress-build
+FROM rust:1.100.0-slim-bookworm AS native-egress-build
 
 WORKDIR /src
 
@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked --package codex-lb-egress-worker --bin codex-lb-native-egress \
     && cp target/release/codex-lb-native-egress /tmp/codex-lb-native-egress
 
-FROM oven/bun:1.3.14-alpine AS frontend-build
+FROM oven/bun:1.4.4-alpine AS frontend-build
 
 WORKDIR /app/frontend
 
@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 COPY frontend ./
 RUN bun run build
 
-FROM python:3.14-slim AS python-build
+FROM python:3.14.10-slim AS python-build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -41,7 +41,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project --extra metrics --extra tracing
 
-FROM python:3.14-slim AS runtime
+FROM python:3.14.10-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

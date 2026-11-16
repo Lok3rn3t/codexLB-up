@@ -59,7 +59,7 @@ for bundled or external PostgreSQL and cluster configuration.
 ## Releases and source
 
 See [GitHub Releases](https://github.com/Lok3rn3t/codexLB-up/releases) for the
-fix list, verification results, and downloadable packages. Stable releases
+fix list, verification results, and downloadable packages. Validated releases
 publish PyPI packages, Docker images, a Helm chart, and a GitHub Release.
 
 The original project and its contributors retain their attribution and MIT

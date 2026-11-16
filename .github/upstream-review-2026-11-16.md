@@ -24,4 +24,10 @@ The fork's [`d3865a73`](https://github.com/Lok3rn3t/codexLB-up/commit/d3865a73be
 - [PR #2686](https://github.com/Soju06/codex-lb/pull/2686) and [issue #2556](https://github.com/Soju06/codex-lb/issues/2556) concern credit-based API-key limits.
 - Dependency PRs should be updated as a tested group rather than merged solely because their versions are newer.
 
-This review records candidates only. No upstream PR was merged or cherry-picked as part of the review.
+The initial review recorded candidates only. The subsequent 1.25.0 release work
+compared the continuation protocol with `openai/codex` `rust-v0.169.0` and adapted
+the fixes and regression tests from PRs #2731, #2581 and #2636. Their exact source
+commits and ownership constraints are recorded in the OpenSpec change
+`preserve-codex-reconnect-context`. These changes preserve the client's canonical
+recovery signal; they do not promise that a genuinely lost response anchor will
+never produce `previous_response_not_found`.

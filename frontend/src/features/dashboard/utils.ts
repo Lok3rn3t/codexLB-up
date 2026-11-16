@@ -24,7 +24,7 @@ import {
 } from "@/utils/formatters";
 
 function t(key: string, options?: Record<string, unknown>): string {
-  return i18n.t(key, options);
+  return i18n.t(key, options ?? {});
 }
 
 export type RemainingItem = {

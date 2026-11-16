@@ -328,3 +328,11 @@ File operations follow the existing pre-visible unary retry policy. The file cli
 For example, an unpinned upload whose account A cannot connect to its proxy can complete through account B, and the resulting file owner pin belongs to B. Finalization of a file pinned to A remains on A. Ambiguous request delivery, body-read failures, and host-wide network failures do not permit cross-account retries.
 
 Finalization may issue several upstream polls within one downstream call. A refused connection on its first poll can still use an eligible fallback account. After a poll has returned `retry` from A, however, a later refused connection must fail the operation on A: the pre-dispatch status of the later request does not undo the earlier poll's account-local progress. This applies even when no file owner pin was found; direct transport polling retains its existing behavior.
+
+## Codex v0.169 continuation compatibility
+
+Native Codex sends input deltas when a previous response anchors their earlier history. The proxy permits anchorless replay only after a known completion proves the full input prefix; an unknown anchor or a previously recorded delta cannot provide that proof. After completed idle upstream loss, close the native downstream with 1012 so the client reconnects and resets its continuation. Public WebSocket behavior is unchanged.
+
+A complete resend ending in a valid agent message can recover on its durable owner, preserving encrypted input and original item shape. This permission never authorizes account switching, replay after visible output, or recovery without a matching prefix and tool-call manifest. For example, a matching stored prefix, settled tool call and encrypted agent message are replayed on the same owner without the stale anchor; an unavailable owner yields an error instead of sending that body elsewhere.
+
+Client and upstream PR evidence is recorded in `openspec/changes/preserve-codex-reconnect-context/context.md` (or its archived successor). No live provider outage is inferred from passing stubbed regressions.

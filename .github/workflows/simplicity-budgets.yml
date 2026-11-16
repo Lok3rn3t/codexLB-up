@@ -20,7 +20,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, labeled, unlabeled]
   push:
-    branches: ["main"]
+    branches: ["codexLB-up"]
   merge_group:
 
 permissions:

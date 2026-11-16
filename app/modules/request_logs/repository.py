@@ -962,6 +962,7 @@ class RequestLogsRepository:
                 .group_by(RequestLog.error_code)
             )
             for error_code, error_count in (await self._session.execute(stmt)).all():
+                assert error_code is not None  # The query excludes NULL error codes.
                 counts[error_code] = counts.get(error_code, 0) + int(error_count)
         if not counts:
             return None

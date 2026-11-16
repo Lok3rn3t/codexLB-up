@@ -102,7 +102,7 @@ export function AdvancedSettingsGroup({
         <span className="min-w-0">
           <span className="block text-sm font-semibold tracking-tight">{t(labels.title)}</span>
           <span data-testid={descriptionTestId} className="mt-0.5 block text-xs text-muted-foreground">
-            {t(labels.description, descriptionValues)}
+            {t(labels.description, descriptionValues ?? {})}
           </span>
         </span>
       </CollapsibleTrigger>

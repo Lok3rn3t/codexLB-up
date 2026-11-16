@@ -23,6 +23,9 @@ def main() -> None:
         base, head = event["before"], event["after"]
     elif event_name == "merge_group":
         base, head = event["merge_group"]["base_sha"], event["merge_group"]["head_sha"]
+    elif event_name == "workflow_dispatch":
+        head = git("rev-parse", "HEAD").strip()
+        base = git("rev-parse", "HEAD^").strip()
     else:
         raise ValueError(f"Unsupported event: {event_name}")
     if event_name == "push" and base == "0" * 40:

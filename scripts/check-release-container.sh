@@ -18,12 +18,26 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker pull --platform "${platform}" "${image_ref}"
+pull_ok=false
+for attempt in 1 2 3 4 5; do
+  if docker pull --platform "${platform}" "${image_ref}"; then
+    pull_ok=true
+    break
+  fi
+  if [ "${attempt}" -lt 5 ]; then
+    printf 'Docker pull failed for %s (attempt %s/5); retrying...\n' "${platform}" "${attempt}" >&2
+    sleep "$((attempt * 3))"
+  fi
+done
+if [ "${pull_ok}" != true ]; then
+  printf 'Docker pull failed for %s after 5 attempts\n' "${platform}" >&2
+  exit 1
+fi
 container_id="$(docker run -d --platform "${platform}" -p 127.0.0.1::2455 "${image_ref}")"
 address="$(docker port "${container_id}" 2455/tcp)"
 
 curl --fail --silent --show-error --retry 60 --retry-delay 2 \
-  --retry-connrefused --max-time 5 "http://${address}/health/ready"
+  --retry-all-errors --retry-max-time 180 --max-time 5 "http://${address}/health/ready"
 
 docker exec -i "${container_id}" python - "${expected_version}" <<'PY'
 import json
