@@ -10,7 +10,7 @@ import anyio
 import pytest
 from fastapi import WebSocket
 
-from app.core.clients.proxy_websocket import UpstreamWebSocket
+from app.core.clients.proxy_websocket import UpstreamWebSocket, UpstreamWebSocketMessage
 from app.db.models import Account
 from app.modules.proxy._service.support import (
     _DownstreamWebSocketActivity,
@@ -41,7 +41,7 @@ async def test_idle_loss_retires_only_the_physical_upstream_anchor(newer_anchor:
         cast(_WebSocketServiceProtocol, proxy),
         cast(WebSocket, socket),
         cast(UpstreamWebSocket, upstream),
-        message=SimpleNamespace(kind="close", close_code=1000),
+        message=UpstreamWebSocketMessage(kind="close", close_code=1000),
         account=cast(Account, SimpleNamespace(id="account")),
         account_id_value="account",
         pending_requests=deque(),
@@ -77,7 +77,7 @@ async def test_idle_notification_preserves_other_lifecycle_boundaries(boundary: 
         cast(_WebSocketServiceProtocol, proxy),
         cast(WebSocket, socket),
         cast(UpstreamWebSocket, upstream),
-        message=SimpleNamespace(kind="close", close_code=1000),
+        message=UpstreamWebSocketMessage(kind="close", close_code=1000),
         account=cast(Account, SimpleNamespace(id="account")),
         account_id_value="account",
         pending_requests=pending,
@@ -107,7 +107,7 @@ async def test_request_admitted_while_close_waits_is_not_treated_as_idle() -> No
             cast(_WebSocketServiceProtocol, proxy),
             cast(WebSocket, socket),
             cast(UpstreamWebSocket, upstream),
-            message=SimpleNamespace(kind="close", close_code=1000),
+            message=UpstreamWebSocketMessage(kind="close", close_code=1000),
             account=cast(Account, SimpleNamespace(id="account")),
             account_id_value="account",
             pending_requests=pending,
