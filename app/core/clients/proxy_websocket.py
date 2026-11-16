@@ -442,6 +442,12 @@ class NativeUpstreamWebSocket:
             message = await self._websocket.receive()
         except NativeEgressError as exc:
             error = _native_websocket_transport_error(exc, operation="receive")
+            phase = exc.failure_phase if isinstance(exc, NativeEgressTransportError) else "protocol"
+            logger.warning(
+                "native_websocket_receive_failure phase=%s error_code=%s",
+                phase,
+                error.error_code,
+            )
             return UpstreamWebSocketMessage(
                 kind="error",
                 error=str(error),
