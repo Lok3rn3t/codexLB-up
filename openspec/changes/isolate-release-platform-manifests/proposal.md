@@ -12,6 +12,13 @@ started. Retrying the same index reference cannot repair this local collision.
   for the original beta.9 upgrade and existing vulnerability gates.
 - Reject missing or ambiguous platform descriptors before running containers.
 - Preserve the complete parent index, including attestations, for alias promotion.
+- Execute each architecture's startup check on a matching native GitHub runner;
+  require both checks before upgrade, vulnerability scanning, and promotion.
+
+The first corrected run loaded both children successfully. AMD64 passed, while
+ARM64 under QEMU exhausted readiness retries after reporting the schema head.
+Native runners remove emulation from runtime validation without weakening the
+startup assertions or extending their timeout.
 
 ## Impact
 

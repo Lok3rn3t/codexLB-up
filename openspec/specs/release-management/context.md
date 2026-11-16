@@ -76,3 +76,12 @@ execution but retained when the complete parent index is promoted.
 
 Docker documents the index and attestation descriptor shapes in its
 [imagetools inspect reference](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect/).
+
+The first distinct-child run passed amd64 startup, but ARM64 under QEMU reached
+the schema head and did not become ready within the retry budget. Release runtime
+checks therefore use separate native x64 and ARM64 runners. Both smoke jobs must
+succeed before the amd64 upgrade/security/promotion job runs; final publication
+still depends on that promotion job. The same readiness budget and native-worker
+assertions remain in place. QEMU is used only to build the multiarchitecture image.
+GitHub lists `ubuntu-24.04-arm` as a
+[standard ARM64 runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
