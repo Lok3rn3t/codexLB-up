@@ -47,8 +47,7 @@ PY
 }
 
 docker pull --platform "${platform}" "${source_image}"
-# CI supplies a loaded local image. For a released manifest, select the requested
-# architecture again because the preceding smoke test also loads arm64.
+# CI supplies a loaded local image; releases supply an immutable platform manifest.
 if [[ "${target_image}" == *@sha256:* ]]; then
   docker pull --platform "${platform}" "${target_image}"
 fi

@@ -23,9 +23,15 @@ PyPI and GitHub publication; their result is required before archival.
 
 The maintainer requested preserving the database behavior. The release keeps
 SQLAlchemy on the updated 2.0 series (`>=2.0.57,<2.1`) and leaves the original
-Alembic environment, migration revisions, schema, and URL handling unchanged.
-No deployed database is connected to or modified by this work. CI uses its
-existing disposable databases to verify the unchanged migration contract.
+Alembic environment, migration revisions, schema, and URL handling unchanged
+relative to the fork before this release work. Upgrading the original beta.9
+still applies three inherited schema revisions, as described in the migration
+guide. No deployed database is connected to or modified by this work. CI uses
+disposable databases to verify the existing migration contract.
+
+The maintainer subsequently requested deleting all existing fork releases and
+tags before publishing one stable release. The changelog comparison therefore
+uses the former beta's commit SHA as its base instead of the removed beta tag.
 
 Security checks include pip-audit of all locked runtime extras, cargo-deny,
 Bun audit, and the upstream Trivy HIGH/CRITICAL gate. The runtime Docker build

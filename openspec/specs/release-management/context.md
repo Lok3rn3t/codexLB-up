@@ -62,3 +62,17 @@ CI job `133185472572`. Its evidence was preserved locally before the maintainer
 requested removal of the old Actions runs; subsequent CI reruns the same gate.
 This confirms the original beta.9 image-to-fork transition on disposable Linux
 amd64 SQLite data; no production database was accessed or modified.
+
+## Platform-specific release checks
+
+One Docker runner can reject a second architecture pulled under the same index
+digest with `cannot overwrite digest`. Release checks resolve the built index
+using `docker buildx imagetools inspect --raw`, then load each executable child
+by its own digest. For example, amd64 and arm64 smoke checks use distinct
+`repository@sha256:...` references even though both belong to one release index.
+The amd64 child also feeds the upgrade and vulnerability checks. Missing or
+ambiguous platforms fail resolution; attestation descriptors are excluded from
+execution but retained when the complete parent index is promoted.
+
+Docker documents the index and attestation descriptor shapes in its
+[imagetools inspect reference](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect/).

@@ -212,25 +212,36 @@ jobs:
           cache-from: type=gha,scope=codex-lb-release
           cache-to: type=gha,mode=max,scope=codex-lb-release
 
-      - name: Smoke-test both released architectures
+      - name: Resolve executable platform manifests
+        id: platform-images
         env:
           IMAGE_DIGEST: ${{ steps.build-image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          index_ref="ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}"
+          docker buildx imagetools inspect --raw "${index_ref}" \
+            | python -m scripts.release_platform_images --image-ref "${index_ref}"
+
+      - name: Smoke-test both released architectures
+        env:
+          AMD64_IMAGE: ${{ steps.platform-images.outputs.amd64 }}
+          ARM64_IMAGE: ${{ steps.platform-images.outputs.arm64 }}
           EXPECTED_VERSION: ${{ needs.release-metadata.outputs.version }}
         run: |
-          bash scripts/check-release-container.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}" linux/amd64
-          bash scripts/check-release-container.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}" linux/arm64
+          bash scripts/check-release-container.sh "${AMD64_IMAGE}" "${EXPECTED_VERSION}" linux/amd64
+          bash scripts/check-release-container.sh "${ARM64_IMAGE}" "${EXPECTED_VERSION}" linux/arm64
 
       - name: Verify upgrade from original beta.9
         env:
-          IMAGE_DIGEST: ${{ steps.build-image.outputs.digest }}
+          AMD64_IMAGE: ${{ steps.platform-images.outputs.amd64 }}
           EXPECTED_VERSION: ${{ needs.release-metadata.outputs.version }}
         run: |
-          bash scripts/check-upstream-upgrade.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}"
+          bash scripts/check-upstream-upgrade.sh "${AMD64_IMAGE}" "${EXPECTED_VERSION}"
 
       - name: Scan Docker image with Trivy (SARIF)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: ${{ steps.image.outputs.ref }}
+          image-ref: ${{ steps.platform-images.outputs.amd64 }}
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH,MEDIUM,LOW
@@ -251,7 +262,7 @@ jobs:
       - name: Enforce Trivy high-severity gate
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: ${{ steps.image.outputs.ref }}
+          image-ref: ${{ steps.platform-images.outputs.amd64 }}
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
