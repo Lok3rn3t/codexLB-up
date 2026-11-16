@@ -11,6 +11,13 @@
   "commitConvention": "angular",
   "contributors": [
     {
+      "login": "Lok3rn3t",
+      "name": "Lok3rn3t",
+      "avatar_url": "https://avatars.githubusercontent.com/u/71749209?v=4",
+      "profile": "https://github.com/Lok3rn3t",
+      "contributions": ["code", "test", "doc", "maintenance"]
+    },
+    {
       "login": "solid-pixel",
       "name": "Alessandro Benassi",
       "avatar_url": "https://avatars.githubusercontent.com/u/18260178?v=4",

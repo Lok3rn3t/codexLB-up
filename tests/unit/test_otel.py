@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 import errno
+import importlib
 import json
 import logging
 import sys
@@ -50,6 +51,10 @@ def reset_otel_state(monkeypatch: pytest.MonkeyPatch):
 
 
 def _install_fake_otel(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    # FastAPI imports its telemetry runtime lazily on the first lifespan call.
+    # Resolve that unrelated runtime against the real OTel API before replacing
+    # the app's instrumentation modules with deliberately minimal test fakes.
+    importlib.import_module("fastapi.telemetry._runtime")
     state = SimpleNamespace(
         provider=None,
         exporter_endpoint=None,

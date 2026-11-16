@@ -17,3 +17,12 @@ The build uses TypeScript 7.0.2 through the `@typescript/native` alias. The
 `typescript` package used by typescript-eslint stays on 6.0.3 because current
 typescript-eslint 8.72.2 explicitly rejects TypeScript 7.0. This split is an
 upstream compatibility constraint, not a skipped compiler upgrade.
+
+Verification: local Vitest completed 183 files and 1,658 tests successfully.
+After the final transitive refresh and minimatch override, GitHub CI run
+43813251422 at commit 3d1d6398 passed frontend lint, type checking, build,
+the complete coverage job (133119503941), and the dashboard browser smoke.
+The Nix job verified that bun.nix exactly matches bun.lock before reaching an
+unrelated missing package-readme failure; the package source now includes
+docs/distribution.md. Bun audit reports only the development-only deepmerge
+advisory recorded in the release context.

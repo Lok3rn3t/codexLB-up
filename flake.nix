@@ -51,7 +51,7 @@
 
       codexLbMeta = {
         inherit (projectMetadata) description;
-        homepage = "https://github.com/Soju06/codex-lb";
+        homepage = projectMetadata.urls.Repository;
         license = lib.licenses.mit;
         mainProgram = "codex-lb";
         maintainers = [ lib.maintainers.aaravrav ];
@@ -74,6 +74,7 @@
           ./config
           ./LICENSE
           ./README.md
+          ./docs/distribution.md
           ./pyproject.toml
         ];
       };
@@ -85,6 +86,7 @@
           ./config
           ./LICENSE
           ./README.md
+          ./docs/distribution.md
           ./pyproject.toml
         ];
       };

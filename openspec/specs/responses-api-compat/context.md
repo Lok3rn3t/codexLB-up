@@ -335,4 +335,4 @@ Native Codex sends input deltas when a previous response anchors their earlier h
 
 A complete resend ending in a valid agent message can recover on its durable owner, preserving encrypted input and original item shape. This permission never authorizes account switching, replay after visible output, or recovery without a matching prefix and tool-call manifest. For example, a matching stored prefix, settled tool call and encrypted agent message are replayed on the same owner without the stale anchor; an unavailable owner yields an error instead of sending that body elsewhere.
 
-Client and upstream PR evidence is recorded in `openspec/changes/preserve-codex-reconnect-context/context.md` (or its archived successor). No live provider outage is inferred from passing stubbed regressions.
+Client and upstream PR evidence is recorded in `openspec/changes/archive/2026-11-16-preserve-codex-reconnect-context/context.md`. No live provider outage is inferred from passing stubbed regressions.

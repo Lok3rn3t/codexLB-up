@@ -18,6 +18,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fastapi.routing import APIRoute, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 
@@ -713,8 +714,10 @@ def test_both_public_routes_are_safe_methods(app_instance) -> None:
 
     methods = {
         route.path: route.methods
-        for route in app_instance.routes
-        if getattr(route, "path", "").startswith("/api/dashboard-auth/oidc")
+        for route in iter_route_contexts(app_instance.routes)
+        if isinstance(route.original_route, APIRoute)
+        and route.path is not None
+        and route.path.startswith("/api/dashboard-auth/oidc")
     }
 
     assert methods[START] == {"GET"}

@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import pytest
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, Response
 from starlette.routing import WebSocketRoute
@@ -104,13 +104,14 @@ _SEPARATE_NAMESPACE_ROUTES: frozenset[_RouteKey] = frozenset(
 
 def test_registered_proxy_route_inventory_has_one_explicit_capability_policy(app_instance) -> None:
     registered: set[_RouteKey] = set()
-    for route in app_instance.routes:
+    for route in iter_route_contexts(app_instance.routes):
         endpoint = getattr(route, "endpoint", None)
         if getattr(endpoint, "__module__", None) != proxy_api_module.__name__:
             continue
-        if isinstance(route, APIRoute):
+        assert route.path is not None
+        if isinstance(route.original_route, APIRoute):
             registered.update(("HTTP", method, route.path) for method in route.methods or ())
-        elif isinstance(route, WebSocketRoute):
+        elif isinstance(route.original_route, WebSocketRoute):
             registered.add(("WS", "WEBSOCKET", route.path))
 
     policy_groups = (

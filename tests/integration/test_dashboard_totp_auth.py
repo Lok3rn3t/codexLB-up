@@ -94,7 +94,7 @@ async def test_totp_setup_rejects_stale_password_session_after_password_removal(
     assert start.status_code == 401
     assert start.json()["error"]["code"] == "authentication_required"
 
-    secret = "JBSWY3DPEHPK3PXP"
+    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
     code = pyotp.TOTP(secret).at(current_epoch["value"])
     confirm = await async_client.post(
         "/api/dashboard-auth/totp/setup/confirm",

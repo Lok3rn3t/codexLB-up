@@ -20,7 +20,7 @@ def test_generate_totp_secret_is_valid_base32() -> None:
 
 
 def test_verify_totp_blocks_replayed_time_step() -> None:
-    secret = "JBSWY3DPEHPK3PXP"
+    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
     epoch = 1_700_000_000
     code = pyotp.TOTP(secret).at(epoch)
 
@@ -40,7 +40,7 @@ def test_verify_totp_blocks_replayed_time_step() -> None:
 
 
 def test_build_otpauth_uri_contains_issuer_and_account() -> None:
-    uri = build_otpauth_uri("JBSWY3DPEHPK3PXP", account_name="dashboard", issuer="codex-lb")
+    uri = build_otpauth_uri("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", account_name="dashboard", issuer="codex-lb")
     assert uri.startswith("otpauth://totp/")
     assert "issuer=codex-lb" in uri
-    assert "secret=JBSWY3DPEHPK3PXP" in uri
+    assert "secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" in uri

@@ -1,4 +1,4 @@
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 
 from app.modules.proxy.api import router
 
@@ -6,8 +6,8 @@ from app.modules.proxy.api import router
 def test_thread_goal_get_and_post_routes_share_handler_with_distinct_ids() -> None:
     routes = [
         route
-        for route in router.routes
-        if isinstance(route, APIRoute) and route.path == "/backend-api/codex/thread/goal/get"
+        for route in iter_route_contexts(router.routes)
+        if isinstance(route.original_route, APIRoute) and route.path == "/backend-api/codex/thread/goal/get"
     ]
 
     assert len(routes) == 2

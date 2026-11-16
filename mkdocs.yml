@@ -55,6 +55,7 @@ validation:
 
 nav:
   - Home: index.md
+  - Fork Distribution: distribution.md
   - Getting Started: getting-started.md
   - Client Setup: client-setup.md
   - Live Voice: live-voice.md

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import pytest
 from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
 from httpx import AsyncClient
 
 import app.core.auth.dependencies as auth_dependencies
@@ -201,7 +201,7 @@ def _walk(dependant: Dependant) -> Iterator[Callable[..., object]]:
         yield from _walk(sub)
 
 
-def _route_auth(route: APIRoute) -> RouteAuth:
+def _route_auth(route: RouteContext) -> RouteAuth:
     session_validated = False
     write_alias_gate = False
     requirements: list[PermissionRequirement] = []
@@ -217,12 +217,19 @@ def _route_auth(route: APIRoute) -> RouteAuth:
     return RouteAuth(session_validated, write_alias_gate, tuple(requirements))
 
 
-def _dashboard_routes(app: FastAPI) -> Iterator[tuple[str, str, APIRoute]]:
-    for route in app.routes:
-        if not isinstance(route, APIRoute) or not route.path.startswith(DASHBOARD_PREFIX):
+def _dashboard_routes(app: FastAPI) -> Iterator[tuple[str, str, RouteContext]]:
+    found = False
+    for route in iter_route_contexts(app.routes):
+        if (
+            not isinstance(route.original_route, APIRoute)
+            or not route.path
+            or not route.path.startswith(DASHBOARD_PREFIX)
+        ):
             continue
         for method in sorted(route.methods or ()):
+            found = True
             yield method, route.path, route
+    assert found, "the dashboard route inventory is empty"
 
 
 def _is_session_exempt(method: str, path: str) -> bool:
@@ -294,8 +301,8 @@ def test_every_scim_route_carries_the_bearer_and_no_dashboard_authority(app_inst
 
     scim_routes = [
         (method, route)
-        for route in app_instance.routes
-        if isinstance(route, APIRoute) and route.path.startswith("/scim/")
+        for route in iter_route_contexts(app_instance.routes)
+        if isinstance(route.original_route, APIRoute) and route.path and route.path.startswith("/scim/")
         for method in sorted(route.methods or ())
     ]
     assert scim_routes, "the SCIM router is not registered"
