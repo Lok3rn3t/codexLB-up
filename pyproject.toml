@@ -1,6 +1,6 @@
 [project]
 name = "codexLB-up"
-version = "1.25.0-beta.10"
+version = "1.25.0"
 description = "Maintained codex-lb fork with audited compatibility and security fixes"
 readme = "docs/distribution.md"
 license = { file = "LICENSE" }
@@ -21,7 +21,6 @@ keywords = [
     "dashboard",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Framework :: FastAPI",
     "License :: OSI Approved :: MIT License",

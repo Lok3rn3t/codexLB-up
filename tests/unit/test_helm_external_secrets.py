@@ -677,14 +677,14 @@ def test_helm_test_pod_image_can_be_overridden() -> None:
         "--set",
         "test.image.registry=ghcr.io",
         "--set",
-        "test.image.repository=soju06/codex-lb",
+        "test.image.repository=lok3rn3t/codexlb-up",
         "--set",
         "test.image.tag=ci",
         "--set",
         "test.image.pullPolicy=Never",
     )
 
-    assert "image: ghcr.io/soju06/codex-lb:ci" in rendered
+    assert "image: ghcr.io/lok3rn3t/codexlb-up:ci" in rendered
     assert "imagePullPolicy: Never" in rendered
     assert "docker.io/library/busybox:1.37" not in rendered
 
@@ -753,13 +753,13 @@ def test_migration_job_image_does_not_duplicate_registry_prefix() -> None:
         "--set",
         "image.registry=ghcr.io",
         "--set",
-        "image.repository=soju06/codex-lb",
+        "image.repository=lok3rn3t/codexlb-up",
         "--set",
         "image.tag=local-test",
     )
 
     assert "ghcr.io/ghcr.io/" not in rendered
-    assert "ghcr.io/soju06/codex-lb:local-test" in rendered
+    assert "ghcr.io/lok3rn3t/codexlb-up:local-test" in rendered
 
 
 def test_external_secrets_mode_overlay_renders_schema_gate_init_container() -> None:

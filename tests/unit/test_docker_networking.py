@@ -21,6 +21,13 @@ def test_stock_compose_uses_user_defined_default_bridge(compose_name: str) -> No
         assert "dns" not in service
 
 
+def test_production_compose_uses_published_fork_image() -> None:
+    compose = yaml.safe_load((_REPO_ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8"))
+
+    assert compose["services"]["server"]["image"] == "ghcr.io/lok3rn3t/codexlb-up:latest"
+    assert "build" not in compose["services"]["server"]
+
+
 def test_standalone_docker_examples_use_named_bridge() -> None:
     readme = (_REPO_ROOT / "README.md").read_text(encoding="utf-8")
     standalone_launches = readme.count("docker run -d --name codex-lb")
@@ -51,7 +58,7 @@ def test_network_switching_guidance_is_cross_platform_and_approachable() -> None
 
     assert "home Wi-Fi to a phone hotspot" in switching_section
     assert "Linux, macOS, and Windows" in switching_section
-    assert "uvx codex-lb" in switching_section
+    assert "uvx --from codexLB-up codex-lb" in switching_section
     assert "Docker Desktop on macOS or Windows" in switching_section
     assert "Docker Desktop 4.34 and later" in switching_section
     assert "not been verified as a reliable fix" in switching_section

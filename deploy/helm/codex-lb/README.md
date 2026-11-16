@@ -1,6 +1,6 @@
 # codex-lb Helm Chart
 
-Production-ready Helm chart for [codex-lb](https://github.com/soju06/codex-lb), an OpenAI API load balancer with account pooling, usage tracking, and dashboard.
+Production-ready Helm chart for [codex-lb](https://github.com/Lok3rn3t/codexLB-up), an OpenAI API load balancer with account pooling, usage tracking, and dashboard.
 
 ## Design Goal
 
@@ -41,7 +41,7 @@ Key properties:
 Example:
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   --set postgresql.auth.password=change-me \
   --set config.databaseMigrateOnStartup=true \
   --set migration.schemaGate.enabled=false
@@ -80,7 +80,7 @@ Supported DB wiring:
 Example using a direct URL:
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   --set postgresql.enabled=false \
   --set externalDatabase.url='postgresql+asyncpg://user:pass@db.example.com:5432/codexlb'
 ```
@@ -88,7 +88,7 @@ helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
 Example using separate secrets:
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   --set postgresql.enabled=false \
   --set externalDatabase.existingSecret=codex-lb-db \
   --set auth.existingSecret=codex-lb-app
@@ -121,7 +121,7 @@ Key properties:
 Example:
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   --set postgresql.enabled=false \
   --set externalSecrets.enabled=true \
   --set externalSecrets.secretStoreRef.name=my-store
@@ -167,7 +167,7 @@ No repo clone required — install directly from the OCI registry.
 Bundled PostgreSQL:
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   --set postgresql.auth.password=local-dev-password \
   --set config.databaseMigrateOnStartup=true \
   --set migration.schemaGate.enabled=false
@@ -176,7 +176,7 @@ helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
 ### Managed PostgreSQL
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   --set postgresql.enabled=false \
   --set externalDatabase.url='postgresql+asyncpg://user:pass@db.example.com:5432/codexlb'
 ```
@@ -434,7 +434,7 @@ four SQL panels follow that one runtime selection. The owning contract is in
 Install with:
 
 ```bash
-helm install codex-lb oci://ghcr.io/soju06/charts/codex-lb \
+helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb \
   -f deploy/helm/codex-lb/values-prod.yaml \
   --set externalDatabase.url='postgresql+asyncpg://user:pass@db.example.com:5432/codexlb'
 ```
@@ -619,7 +619,7 @@ Advanced snippet-based keys via `ingress.responses.nginx.configurationSnippet` a
 ## Upgrade Contract
 
 ```bash
-helm upgrade codex-lb oci://ghcr.io/soju06/charts/codex-lb <your values...>
+helm upgrade codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb <your values...>
 ```
 
 **Upgrade warning:** the chart enforces a render-time timing guard. Existing

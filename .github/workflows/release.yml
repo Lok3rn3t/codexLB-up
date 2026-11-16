@@ -125,7 +125,7 @@ jobs:
 
   publish-to-pypi:
     name: Publish to PyPI
-    needs: [build]
+    needs: [build, docker-image, helm-chart]
     runs-on: ubuntu-24.04
 
     permissions:
@@ -153,7 +153,6 @@ jobs:
 
   docker-image:
     name: Build and push Docker image
-    if: github.repository == 'Soju06/codex-lb'
     needs: [build, release-metadata]
     runs-on: ubuntu-24.04
 
@@ -188,29 +187,38 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.release-metadata.outputs.is_prerelease == 'false' }}
-            type=semver,pattern={{major}},enable=${{ needs.release-metadata.outputs.is_prerelease == 'false' }}
+            type=semver,pattern={{version}},value=${{ needs.release-metadata.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-metadata.outputs.version }},enable=${{ needs.release-metadata.outputs.is_prerelease == 'false' }}
+            type=semver,pattern={{major}},value=${{ needs.release-metadata.outputs.version }},enable=${{ needs.release-metadata.outputs.is_prerelease == 'false' }}
             type=raw,value=latest,enable=${{ needs.release-metadata.outputs.is_prerelease == 'false' }}
             type=raw,value=${{ needs.release-metadata.outputs.channel }},enable=${{ needs.release-metadata.outputs.is_prerelease == 'true' }}
 
+      - name: Set lowercase image ref
+        id: image
+        env:
+          IMAGE_VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}:${IMAGE_VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Docker image
+        id: build-image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
         with:
           context: .
           file: Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.image.outputs.ref }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=codex-lb-release
           cache-to: type=gha,mode=max,scope=codex-lb-release
 
-      - name: Set lowercase image ref
-        id: image
+      - name: Smoke-test both released architectures
         env:
-          IMAGE_VERSION: ${{ steps.meta.outputs.version }}
-        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}:${IMAGE_VERSION}" >> "$GITHUB_OUTPUT"
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.digest }}
+          EXPECTED_VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          bash scripts/check-release-container.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}" linux/amd64
+          bash scripts/check-release-container.sh "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}" "${EXPECTED_VERSION}" linux/arm64
 
       - name: Scan Docker image with Trivy (SARIF)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
@@ -230,9 +238,20 @@ jobs:
           # one default-branch Docker baseline to compare against.
           category: .github/workflows/ci.yml:docker
 
+      - name: Promote tested image aliases
+        env:
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.digest }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          tags=()
+          while IFS= read -r tag; do
+            [ -z "${tag}" ] || tags+=(--tag "${tag}")
+          done <<< "${IMAGE_TAGS}"
+          docker buildx imagetools create "${tags[@]}" "ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}"
+
   helm-chart:
     name: Publish Helm chart to GHCR
-    if: github.repository == 'Soju06/codex-lb'
     needs: [build]
     runs-on: ubuntu-24.04
 
@@ -264,6 +283,7 @@ jobs:
 
       - name: Package Helm chart
         run: |
+          helm lint deploy/helm/codex-lb/
           mkdir -p .helm-pkg
           helm package deploy/helm/codex-lb/ -d .helm-pkg/
 
@@ -272,13 +292,20 @@ jobs:
           OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
           helm push .helm-pkg/codex-lb-*.tgz "oci://ghcr.io/${OWNER_LC}/charts"
 
+      - name: Upload chart artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: helm-chart
+          path: .helm-pkg/*.tgz
+
   create-github-release:
     name: Create GitHub Release
     needs: [publish-to-pypi, docker-image, helm-chart, release-metadata]
     if: >-
-      always() && needs.publish-to-pypi.result == 'success' &&
-      needs.release-metadata.result == 'success' &&
-      !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      needs.publish-to-pypi.result == 'success' &&
+      needs.docker-image.result == 'success' &&
+      needs.helm-chart.result == 'success' &&
+      needs.release-metadata.result == 'success'
     runs-on: ubuntu-24.04
 
     permissions:
@@ -298,8 +325,14 @@ jobs:
           name: dist
           path: dist
 
+      - name: Download chart artifact
+        uses: actions/download-artifact@fc02353415da80201a0da48ab47022efd7725d11
+        with:
+          name: helm-chart
+          path: dist
+
       - name: Compute artifact checksums
-        run: cd dist && sha256sum *.whl *.tar.gz > SHA256SUMS.txt
+        run: cd dist && sha256sum *.whl *.tar.gz *.tgz > SHA256SUMS.txt
 
       - name: Resolve previous tag
         id: prev_tag
@@ -383,8 +416,12 @@ jobs:
             echo '```bash'
             if [ "${IS_PRERELEASE}" = "true" ]; then
               echo "uvx --from \"codexLB-up==${PYPI_VERSION}\" codex-lb"
+              echo "docker pull ghcr.io/${GITHUB_REPOSITORY,,}:${TAG_VERSION}"
+              echo "helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${TAG_VERSION} --devel"
             else
               echo 'uvx --from codexLB-up codex-lb'
+              echo "docker pull ghcr.io/${GITHUB_REPOSITORY,,}:${TAG_VERSION}"
+              echo "helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${TAG_VERSION}"
             fi
             echo '```'
           } >> release_notes.md
@@ -393,7 +430,7 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           tag_name: ${{ steps.notes.outputs.tag_name }}
-          name: Release ${{ steps.notes.outputs.tag_name }}
+          name: codexLB-up ${{ steps.notes.outputs.tag_name }}
           body_path: release_notes.md
           files: "dist/*"
           draft: false

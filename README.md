@@ -6,7 +6,7 @@ Topics
 python oauth sqlalchemy dashboard load-balancer openai rate-limit api-proxy codex fastapi usage-tracking chatgpt opencode
 -->
 
-# codex-lb
+# codexLB-up
 
 ![codex-lb](docs/screenshots/banner.jpg)
 
@@ -14,7 +14,10 @@ python oauth sqlalchemy dashboard load-balancer openai rate-limit api-proxy code
 
 Load balancer for ChatGPT accounts. Pool multiple accounts, track usage, manage API keys, view everything in a dashboard.
 
-**Documentation: <https://soju06.github.io/codex-lb/>** — getting started, client setup, configuration, deployment, troubleshooting, and more screenshots.
+Maintained fork of [Soju06/codex-lb](https://github.com/Soju06/codex-lb). See the
+[fork installation and release guide](docs/distribution.md) for PyPI, Docker, and Helm.
+
+**Upstream documentation: <https://soju06.github.io/codex-lb/>** — client setup, configuration, deployment, troubleshooting, and more screenshots.
 
 ## Features
 
@@ -44,13 +47,13 @@ docker run -d --name codex-lb \
   --network codex-lb-net \
   -p 2455:2455 -p 1455:1455 \
   -v codex-lb-data:/var/lib/codex-lb \
-  ghcr.io/soju06/codex-lb:latest
+  ghcr.io/lok3rn3t/codexlb-up:latest
 
 # or uvx
-uvx codex-lb
+uvx --from codexLB-up codex-lb
 
 # or nix
-nix run github:Soju06/codex-lb
+nix run github:Lok3rn3t/codexLB-up
 ```
 
 Open [localhost:2455](http://localhost:2455) → Add account → Done.

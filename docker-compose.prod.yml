@@ -12,9 +12,7 @@
 # require the Helm chart with PostgreSQL and leader election (deploy/helm/codex-lb).
 services:
   server:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/lok3rn3t/codexlb-up:latest
     env_file:
       - .env.local
     ports:
