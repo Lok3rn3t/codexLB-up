@@ -330,6 +330,19 @@ async def test_native_direct_adapter_classifies_helper_pong_timeout() -> None:
 
 
 @pytest.mark.asyncio
+async def test_native_receive_failure_logs_safe_phase(caplog: pytest.LogCaptureFixture) -> None:
+    class NativeConnection(_FakeNativeWebSocket):
+        async def receive(self) -> NativeWebSocketMessage:
+            raise NativeEgressTransportError("private socket detail", failure_phase="transport")
+
+    message = await NativeUpstreamWebSocket(cast(Any, NativeConnection())).receive()
+
+    assert message.kind == "error"
+    assert "native_websocket_receive_failure phase=transport" in caplog.text
+    assert "private socket detail" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_direct_adapter_does_not_trust_peer_keepalive_timeout_marker() -> None:
     class Connection:
         async def recv(self):
