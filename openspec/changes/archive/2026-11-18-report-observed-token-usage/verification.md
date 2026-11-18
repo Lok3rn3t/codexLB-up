@@ -64,3 +64,9 @@ Updated the integration checks to assert reported percentage averages, exact
 lower bounds and unknown coverage, and aligned the existing browser viewport
 test with the quota headings. All 16 tests in the three affected integration
 suites passed locally.
+
+PostgreSQL CI caught the retention test comparing the entire pre-fold and
+post-fold API-key dataclasses. Its numeric totals were identical, while the
+new coverage correctly changed from three complete raw requests to three
+unknown folded requests. The test now asserts that transition and unchanged
+folded sums/coverage after pruning. All 17 retention tests passed locally.

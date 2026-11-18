@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -9,6 +10,7 @@ import app.core.retention.job as retention_job
 from app.core.config.settings_cache import get_settings_cache
 from app.core.crypto import TokenEncryptor
 from app.core.retention.job import run_retention_pass
+from app.core.usage.types import TokenUsageCoverage
 from app.core.utils.time import utcnow
 from app.db.models import Account, AccountStatus, AdditionalUsageHistory, RequestLog, UsageHistory
 from app.db.session import SessionLocal
@@ -476,7 +478,8 @@ async def test_usage_history_backlog_drains_across_batches(db_setup, monkeypatch
 @pytest.mark.asyncio
 async def test_api_key_totals_survive_pruning_and_match_pre_fold(db_setup, monkeypatch):
     """Per-key lifetime summaries fold alongside account sums; pruning folded
-    rows must not change them, and folded totals must equal pre-fold ones."""
+    rows must not change them, and folded totals must equal pre-fold ones.
+    Legacy rollups retain sums but mark per-request coverage unknown."""
     from app.db.models import ApiKey, ApiKeyUsageRollup
     from app.modules.api_keys.repository import ApiKeysRepository
 
@@ -510,17 +513,19 @@ async def test_api_key_totals_survive_pruning_and_match_pre_fold(db_setup, monke
     before = await _key_summary()
     assert before.request_count == 3
     assert before.total_tokens == 3 * 150
+    assert before.token_usage == TokenUsageCoverage(complete_requests=3)
 
     await run_fold_pass(now=now)
     await run_hourly_fold_pass(now=now)
     await run_conversation_fold_pass(now=now)
     await run_report_fold_pass(now=now)
-    assert await _key_summary() == before
+    folded = replace(before, token_usage=TokenUsageCoverage(unknown_requests=3))
+    assert await _key_summary() == folded
 
     await _set_retention(request_logs=30)
     deleted = await run_retention_pass(now=now)
     assert deleted["request_logs"] == 2
-    assert await _key_summary() == before
+    assert await _key_summary() == folded
 
     # Key deletion removes its rollup row.
     async with SessionLocal() as session:
