@@ -1,4 +1,5 @@
-import { summarizeTokenUsage, type TokenUsageCoverage } from "@/utils/token-usage";
+import { summarizeTokenUsage } from "@/utils/token-usage";
+import type { TokenUsageCoverage } from "@/schemas/token-usage";
 import { Ellipsis, KeyRound, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 

@@ -45,3 +45,15 @@ retries, or recovery of missing historical token observations.
 No release, deployment, commit or push was performed for this change. The existing
 subscription-label patch is preserved. Separate remote diagnostics used only
 read-only state/log inspection and did not alter the server or container.
+
+## Release preparation follow-up
+
+After publication was requested, GitHub's browser smoke test exposed a Node ESM
+import failure: API schemas imported the usage formatter, which initialized
+browser i18n and loaded JSON locales without Node import attributes. The same
+failure was reproduced locally through Playwright test discovery. Moving the
+coverage schema and its inferred type into `src/schemas/token-usage.ts` keeps
+API validation independent of browser formatting. Discovery now lists all eight
+existing browser smoke tests; 92 affected formatter/schema/overview tests,
+TypeScript checking and scoped ESLint passed. Full hosted acceptance remains a
+release gate for the final commit.

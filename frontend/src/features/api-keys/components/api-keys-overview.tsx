@@ -1,4 +1,5 @@
-import { summarizeTokenUsage, type TokenUsageCoverage } from "@/utils/token-usage";
+import { summarizeTokenUsage } from "@/utils/token-usage";
+import type { TokenUsageCoverage } from "@/schemas/token-usage";
 import { useTranslation } from "react-i18next";
 
 import type { ApiKey } from "@/features/api-keys/schemas";

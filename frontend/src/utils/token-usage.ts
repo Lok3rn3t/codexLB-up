@@ -1,22 +1,8 @@
 import i18n from "@/i18n";
-import { z } from "zod";
+import type { TokenUsageCoverage } from "@/schemas/token-usage";
 import { formatCompactNumber, formatNumber, toNumber } from "@/utils/formatters";
 
 export type UsageCompleteness = "complete" | "partial" | "missing";
-
-export type TokenUsageCoverage = {
-  completeRequests: number;
-  partialRequests: number;
-  missingRequests: number;
-  unknownRequests: number;
-};
-
-export const TokenUsageCoverageSchema = z.object({
-  completeRequests: z.number().int().nonnegative(),
-  partialRequests: z.number().int().nonnegative(),
-  missingRequests: z.number().int().nonnegative(),
-  unknownRequests: z.number().int().nonnegative(),
-});
 
 export function formatObservedTokens(value: unknown, completeness?: UsageCompleteness): string {
   const tokens = toNumber(value);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TokenUsageCoverageSchema } from "@/utils/token-usage";
+import { TokenUsageCoverageSchema } from "@/schemas/token-usage";
 
 import { AccountAdditionalQuotaSchema, AccountSummarySchema } from "@/features/accounts/schemas";
 import type { AccountSummary } from "@/features/accounts/schemas";

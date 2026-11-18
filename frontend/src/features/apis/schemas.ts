@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TokenUsageCoverageSchema } from "@/utils/token-usage";
+import { TokenUsageCoverageSchema } from "@/schemas/token-usage";
 
 const ApiKeyTrendPointSchema = z.object({
   t: z.iso.datetime({ offset: true }),
