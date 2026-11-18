@@ -678,7 +678,7 @@
   "dashboard.accountList.headers.status": "상태",
   "dashboard.accountList.headers.plan": "Plan",
   "dashboard.accountList.headers.quota": "Quota",
-  "dashboard.accountList.headers.subscriptionCredits": "구독 할당량",
+  "dashboard.accountList.headers.subscriptionCredits": "구독 크레딧 (추정)",
   "dashboard.accountList.headers.purchasedCredits": "구매 크레딧",
   "dashboard.accountList.headers.warmup": "Warm-up",
   "dashboard.accountList.idShort": "ID {{id}}",
@@ -2043,13 +2043,12 @@
   "usage.tokens.unknown": "측정 범위 불명",
   "usage.tokens.state": "토큰 측정 상태",
   "usage.tokens.coverage": "전체 {{completeRequests}} · 부분 {{partialRequests}} · 누락 {{missingRequests}} · 불명 {{unknownRequests}}",
-  "usage.tokens.timing": "업스트림이 사용량을 보고한 후 토큰 수가 갱신됩니다. 화면이 보일 때 개요는 {{seconds}}초, 요청 목록은 30초마다 갱신됩니다. 이 프록시에 기록된 요청만 포함하며 ≥는 확인된 하한입니다.",
   "usage.quota.averageRemaining": "평균 잔여량",
   "usage.quota.averageUsed": "평균 사용량",
   "usage.quota.knownAccounts": "측정된 계정 {{count}}개",
   "usage.quota.averageNote": "보고된 비율의 동일 가중 평균입니다. 측정값이 없는 계정은 제외됩니다.",
   "usage.quota.fiveHour": "5시간 할당량",
   "usage.quota.weekly": "주간 할당량",
-  "usage.quota.safeEstimate": "요금제 용량 추정: 안전 사용량 {{percent}}%.",
+  "usage.quota.safeEstimate": "요금제 용량 추정: 안전 사용량 {{percent}}.",
   "usage.quota.estimateNote": "요금제 용량과 사용 이력에 따른 추정입니다. 모델 크레딧은 측정된 토큰 한도나 업스트림 크레딧 잔액이 아닙니다."
 }

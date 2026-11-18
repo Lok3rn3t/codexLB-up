@@ -1,14 +1,27 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Activity, AlertTriangle, Coins, DollarSign, Flame } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { StatsGrid } from "@/features/dashboard/components/stats-grid";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const EMPTY_TREND: { value: number }[] = [];
 const SAMPLE_TREND = [{ value: 1 }, { value: 2 }, { value: 3 }];
 
 describe("StatsGrid", () => {
+  it("shows the exact lower bound when the token value receives keyboard focus", async () => {
+    const user = userEvent.setup();
+    render(<StatsGrid stats={[{
+      label: "Tokens (7d)", value: "≥ 958.8M", exactValue: "≥ 958,815,427",
+      icon: Coins, trend: EMPTY_TREND, trendColor: "#8b5cf6",
+    }]} />, { wrapper: TooltipProvider });
+    await user.tab();
+    expect(screen.getByRole("button", { name: "≥ 958.8M" })).toHaveFocus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("≥ 958,815,427");
+  });
+
   it("renders metric cards with values", () => {
     render(
       <StatsGrid

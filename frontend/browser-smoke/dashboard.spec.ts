@@ -277,6 +277,53 @@ test("dashboard usage donuts stay within supported viewports", async ({ page }) 
   }
 });
 
+for (const width of [390, 1440]) {
+  test(`request-log plan labels fit beside API keys at ${width}px`, async ({ page }) => {
+    const plans = [
+      { planType: "self_serve_business_prolite", label: "Business Premium" },
+      { planType: "sci_plus", label: "Academic Researchers Plus" },
+    ];
+    const requests = plans.map(({ planType }) => createRequestLogEntry({
+      planType, requestId: `req_${planType}`, apiKeyName: "Classroom key",
+    }));
+    await installMobileContainmentFixtures(page);
+    await page.route((url) => url.pathname === "/api/request-logs", (route) =>
+      route.fulfill({ json: createRequestLogsResponse(requests, requests.length, false) }),
+    );
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/dashboard");
+    const resizePlan = page.getByRole("separator", { name: "Resize Plan column" });
+    for (const columnWidth of [96, 64]) {
+      if (columnWidth === 64) {
+        for (let i = 0; i < 4; i++) await resizePlan.press("ArrowLeft");
+      }
+      await expect(resizePlan).toHaveAttribute("aria-valuenow", String(columnWidth));
+      for (const { label } of plans) {
+        const cell = page.getByRole("cell", { name: label, exact: true });
+        const key = page.getByRole("row").filter({ has: cell }).getByRole("cell", { name: "Classroom key" });
+        await expect(key).toBeVisible();
+        const bounds = await cell.evaluate((td) => {
+          const badge = td.querySelector("[data-slot=badge]")!;
+          const range = document.createRange();
+          range.selectNodeContents(badge);
+          return {
+            cell: td.getBoundingClientRect().toJSON(),
+            badge: badge.getBoundingClientRect().toJSON(),
+            lines: Array.from(range.getClientRects(), (line) => line.toJSON()),
+          };
+        });
+        expect(bounds.badge.left).toBeGreaterThanOrEqual(bounds.cell.left);
+        expect(bounds.badge.right).toBeLessThanOrEqual(bounds.cell.right);
+        expect(bounds.lines.length).toBeGreaterThan(0);
+        for (const line of bounds.lines) {
+          expect(line.left).toBeGreaterThanOrEqual(bounds.badge.left);
+          expect(line.right).toBeLessThanOrEqual(bounds.badge.right);
+        }
+      }
+    }
+  });
+}
+
 test("desktop route navigation resets new pages without overriding query, history, or hash scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openLongSettingsPage(page, 1400);

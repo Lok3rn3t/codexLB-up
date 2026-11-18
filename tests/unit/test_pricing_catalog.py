@@ -62,7 +62,7 @@ def test_litellm_units_and_non_openai_filter():
         "mode": "chat",
         "input_cost_per_token": 1e-5,
         "output_cost_per_token": 5e-5,
-        "cache_read_input_token_cost": 1e-6,
+        "cache_read_input_token_cost": 4e-7,
         "input_cost_per_token_priority": 2e-5,
         "output_cost_per_token_priority": 1e-4,
     }
@@ -71,6 +71,7 @@ def test_litellm_units_and_non_openai_filter():
     )
     assert set(prices) == {"gpt-test"}
     assert prices["gpt-test"].input_per_1m == 10
+    assert prices["gpt-test"].cached_input_per_1m == 0.4
     assert prices["gpt-test"].priority_output_per_1m == 100
 
 

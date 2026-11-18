@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart, Sector, type PieSectorShapeProps } from "@/components/lazy-recharts";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { buildDonutPalette } from "@/utils/colors";
 import { formatCompactNumber, formatNumber, formatPercentNullable } from "@/utils/formatters";
@@ -14,7 +15,7 @@ export type DonutChartItem = {
   label: string;
   /** Suffix appended after the label (not blurred in privacy mode). */
   labelSuffix?: string;
-  /** When true the label text gets CSS-blurred in privacy mode. */
+  /** Mask the label in both the legend and its tooltip in privacy mode. */
   isEmail?: boolean;
   value: number;
   color?: string;
@@ -26,6 +27,7 @@ export type DonutChartProps = {
   centerValue?: number;
   title: string;
   subtitle?: string;
+  estimate?: string | null;
   safeLine?: { safePercent: number; riskLevel: "safe" | "warning" | "danger" | "critical" } | null;
   /**
    * Layout for the donut center label/value pair.
@@ -108,7 +110,7 @@ function formatUsedPercent(percent: number): string {
   return `${percent.toLocaleString("en-US", { maximumFractionDigits })}%`;
 }
 
-export function DonutChart({ items, total, centerValue, title, subtitle, safeLine, centerLayout = "remaining" }: DonutChartProps) {
+export function DonutChart({ items, total, centerValue, title, subtitle, estimate, safeLine, centerLayout = "remaining" }: DonutChartProps) {
   const { t } = useTranslation();
   const isDark = useThemeStore((s) => s.theme === "dark");
   const blurred = usePrivacyStore((s) => s.blurred);
@@ -120,6 +122,7 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
   const normalizedItems = items
     .map((item, index) => ({
       ...item,
+      displayLabel: `${item.isEmail && blurred ? "••••••" : item.label}${item.labelSuffix ?? ""}`,
       color: item.color ?? palette[index % palette.length],
     }))
     .sort((a, b) => b.value - a.value);
@@ -133,7 +136,7 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
   const chartData: DonutDatum[] = [
     ...normalizedItems.map((item) => ({
       id: item.id ?? item.label,
-      name: item.label,
+      name: item.displayLabel,
       value: Math.max(0, item.value),
       fill: item.color,
     })),
@@ -173,13 +176,13 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
   };
 
   return (
-    <div className="min-w-0 rounded-xl border bg-card p-5">
+    <div className="@container flex min-w-0 flex-col rounded-xl border bg-card p-5">
       <div className="mb-5">
         <h3 className="text-sm font-semibold">{title}</h3>
         {subtitle ? <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p> : null}
       </div>
 
-      <div className="flex min-w-0 items-center gap-6">
+      <div className="flex min-w-0 flex-col items-center gap-3 @[24rem]:flex-row @[24rem]:gap-4">
         <div className="flex shrink-0 flex-col items-center gap-2">
           <div className="relative h-[152px] w-[152px] overflow-visible">
             <PieChart width={CHART_SIZE} height={CHART_SIZE} margin={{ top: CHART_MARGIN, right: CHART_MARGIN, bottom: CHART_MARGIN, left: CHART_MARGIN }}>
@@ -230,7 +233,7 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
                  <>
                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("usage.quota.averageRemaining")}</p>
                    <p className="text-base font-semibold tabular-nums" data-testid="donut-center-average">
-                     {formatPercentNullable(safeCapacity > 0 ? usedSum / safeCapacity * 100 : null, 1)}
+                     {formatPercentNullable(safeCapacity > 0 ? usedSum / safeCapacity * 100 : null, 2)}
                    </p>
                  </>
                ) : centerLayout === "credits" ? (
@@ -268,7 +271,7 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
         </div>
 
         <div
-          className="min-w-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="w-full min-w-0 overflow-y-auto [scrollbar-width:thin] @[24rem]:flex-1"
           data-testid="donut-legend-list"
           style={{ maxHeight: `calc(${LEGEND_VISIBLE_COUNT} * ${LEGEND_ROW_HEIGHT_REM}rem + ${(LEGEND_VISIBLE_COUNT - 1) * LEGEND_ROW_GAP_REM}rem)` }}
         >
@@ -276,39 +279,44 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
             const legendId = item.id ?? item.label;
             const isActive = activeLegendId === legendId;
 
-            return (
-            <button
-              ref={(node) => {
-                legendRefs.current[legendId] = node;
-              }}
-              type="button"
-              key={legendId}
-              className="animate-fade-in-up flex h-7 w-full items-center justify-between px-1.5 gap-3 rounded-lg border bg-transparent text-xs transition-all"
-              style={{ animationDelay: `${i * 75}ms`, borderColor: isActive ? item.color : "transparent" }}
-              onMouseEnter={() => setActiveLegendId(legendId)}
-              onMouseLeave={() => setActiveLegendId(null)}
-              onFocus={() => setActiveLegendId(legendId)}
-              onBlur={() => setActiveLegendId(null)}
-              data-active={isActive ? "true" : "false"}
-              data-testid={`donut-legend-${i}`}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  aria-hidden
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="truncate font-medium">
-                  {item.isEmail && blurred
-                    ? <><span className="privacy-blur">{item.label}</span>{item.labelSuffix}</>
-                    : <>{item.label}{item.labelSuffix}</>}
+            const displayValue = centerLayout === "percent" ? formatPercentNullable(item.value, 2) : formatCompactNumber(item.value);
+            const row = (
+              <button
+                ref={(node) => {
+                  legendRefs.current[legendId] = node;
+                }}
+                type="button"
+                key={legendId}
+                className="animate-fade-in-up flex h-7 w-full items-center justify-between gap-2 rounded-lg border bg-transparent px-1.5 text-xs transition-all"
+                style={{ animationDelay: `${i * 75}ms`, borderColor: isActive ? item.color : "transparent" }}
+                onMouseEnter={() => setActiveLegendId(legendId)}
+                onMouseLeave={() => setActiveLegendId(null)}
+                onFocus={() => setActiveLegendId(legendId)}
+                onBlur={() => setActiveLegendId(null)}
+                data-active={isActive ? "true" : "false"}
+                data-testid={`donut-legend-${i}`}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="truncate font-medium">{item.displayLabel}</span>
+                </div>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {displayValue}
                 </span>
-              </div>
-              <span className="tabular-nums text-muted-foreground">
-                {centerLayout === "percent" ? formatPercentNullable(item.value, 1) : formatCompactNumber(item.value)}
-              </span>
-            </button>
+              </button>
             );
+            return centerLayout === "percent" ? (
+              <Tooltip key={legendId}>
+                <TooltipTrigger asChild>{row}</TooltipTrigger>
+                <TooltipContent className="max-w-[min(24rem,85vw)] break-all">
+                  {item.displayLabel} · {displayValue}
+                </TooltipContent>
+              </Tooltip>
+            ) : row;
           })}
           <button
             ref={(node) => {
@@ -332,12 +340,17 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
               />
               <span className="truncate font-medium">{t(centerLayout === "percent" ? "usage.quota.averageUsed" : "components.donut.used")}</span>
             </div>
-            <span className="tabular-nums text-muted-foreground" data-testid="donut-used-value">
-              {centerLayout === "percent" ? formatPercentNullable(safeCapacity > 0 ? usedPercent : null, 1) : formatCompactNumber(consumed)}
+            <span className="shrink-0 tabular-nums text-muted-foreground" data-testid="donut-used-value">
+              {centerLayout === "percent" ? formatPercentNullable(safeCapacity > 0 ? usedPercent : null, 2) : formatCompactNumber(consumed)}
             </span>
           </button>
         </div>
       </div>
+      {estimate ? (
+        <div className="mt-auto pt-4">
+          <p className="border-t pt-3 text-xs tabular-nums text-muted-foreground">{estimate}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

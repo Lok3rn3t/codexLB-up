@@ -308,6 +308,14 @@ describe("DashboardPage", () => {
     expect(screen.queryByRole("heading", { name: "Accounts" })).not.toBeInTheDocument();
   });
 
+  it("shows the quota cards directly below the summary cards", () => {
+    mockReadyDashboard();
+
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.getByTestId("stats-grid").nextElementSibling).toBe(screen.getByTestId("usage-donuts"));
+  });
+
   it("renders request-log loading inside its section without hiding overview content", () => {
     mockReadyDashboard({
       data: undefined,

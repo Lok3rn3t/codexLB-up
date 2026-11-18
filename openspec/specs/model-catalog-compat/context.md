@@ -2,6 +2,10 @@
 
 See the [catalog specification](spec.md) for the normative contracts.
 
+## Cold-start discovery
+
+The metadata updater reads `codex-rs/models-manager/models.json` from the stable OpenAI Codex release. The generated snapshot records its source tag. It supplies public shell-model capabilities and plan lists before account discovery, including models added in newer releases. The compatibility entries for pinned older clients take precedence for overlapping IDs. The proxy obtains prompt templates and account entitlements through live discovery. The separate price catalog can include historical and API-only models.
+
 ## Source base instructions
 
 An OpenAI-compatible source can supply `base_instructions` in each model's

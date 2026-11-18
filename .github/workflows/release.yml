@@ -11,7 +11,7 @@ on:
         description: "Release tag (e.g. v1.19.0 or v1.19.0-beta.1)"
         required: true
       skip_pypi:
-        description: "Rebuild prerelease artifacts without uploading a previously used PyPI version"
+        description: "Publish prerelease artifacts to GitHub and GHCR without uploading to PyPI"
         type: boolean
         default: false
 

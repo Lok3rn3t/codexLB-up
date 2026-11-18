@@ -2,7 +2,9 @@
 
 ## Purpose
 The service SHALL maintain upstream pricing and Codex version metadata with offline fallbacks and repair retained missing request costs.
+
 ## Requirements
+
 ### Requirement: Automatic pricing metadata with offline fallbacks
 The service SHALL refresh validated OpenAI text-token pricing from models.dev's public JSON, supplemented by compatible LiteLLM tier data at startup and periodically, without performing network I/O during cost calculation. It SHALL retain valid prices across partial updates and outages using a last-good persistent cache and a generated bundled snapshot before legacy code defaults. Invalid, negative, non-finite, incomplete, or non-OpenAI entries SHALL NOT replace valid prices. Exact models and their dated snapshots SHALL resolve before broad legacy aliases. Unlisted GPT-5 minor families SHALL remain unpriced until recognized instead of inheriting the generic GPT-5 price. A newer bundled snapshot SHALL take precedence over an older persistent snapshot for overlapping models. Explicit Priority/Flex and long-context rates SHALL be honored when present, including complete tier-specific long-context rates without standard long-context rates. Every long-context rate group SHALL require a positive threshold. Runtime and code-generation catalog reads SHALL enforce a 16 MiB response limit before JSON parsing.
 
@@ -24,3 +26,12 @@ The service SHALL persist successful stable Codex release resolutions across res
 #### Scenario: Offline restart
 - **WHEN** GitHub and npm are unavailable after a successful version resolution and restart
 - **THEN** the service uses the persisted stable version without repeated immediate retries
+
+### Requirement: Maintain model and price snapshots in the fork
+
+The metadata updater SHALL obtain model metadata from the public OpenAI Codex release tag corresponding to the generated client version. It SHALL validate its inputs before replacing the snapshots. The fork's scheduled workflow SHALL target its configured default branch and publish changed snapshots on a review branch. A configured publishing token SHALL allow it to open a pull request.
+
+#### Scenario: Upstream model catalog is unavailable
+
+- **WHEN** price and version discovery succeed but the tagged model catalog is unusable
+- **THEN** generation fails and the existing bundled metadata is preserved

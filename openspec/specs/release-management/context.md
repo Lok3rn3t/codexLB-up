@@ -101,3 +101,12 @@ GitHub assets, Docker and Helm after the normal gates, without advertising a
 new PyPI package. Stable releases reject the option. Replacing an existing tag
 is a separate owner decision; retain the old commit and image digest in the
 release notes and avoid concurrent tag-triggered and manual publication runs.
+
+## Publication after a merged beta PR
+
+After checking the exact candidate SHA and merge tree, the beta publisher
+tags the merge with the repository workflow token and dispatches `release.yml`
+at that tag. For example, the fork dispatches `v1.26.0-beta.3` with
+`skip_pypi=true`. Docker and Helm verification precede the public GitHub
+prerelease. The upstream dispatch continues to require PyPI. If dispatch fails
+after the tag push, retrying the publisher verifies the existing tag's target.

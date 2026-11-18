@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -236,7 +238,15 @@ def test_bootstrap_models_include_representative_upstream_metadata():
     registry = ModelRegistry(ttl_seconds=60.0)
     models = registry.get_models_with_fallback()
 
-    assert set(models) == set(EXPECTED_BOOTSTRAP_MINIMAL_CLIENT_VERSIONS)
+    catalog_path = Path(__file__).resolve().parents[2] / "app/core/openai/codex_models_snapshot.json"
+    release_models = json.loads(catalog_path.read_text())["models"]
+    assert set(models) == set(EXPECTED_BOOTSTRAP_MINIMAL_CLIENT_VERSIONS) | {m["slug"] for m in release_models}
+    for entry in release_models:
+        if entry["slug"] not in EXPECTED_BOOTSTRAP_MINIMAL_CLIENT_VERSIONS:
+            model = models[entry["slug"]]
+            assert model.context_window == entry["context_window"]
+            assert model.available_in_plans == frozenset(entry["available_in_plans"])
+            assert model.raw["visibility"] == "list"
     for slug, expected_version in EXPECTED_BOOTSTRAP_MINIMAL_CLIENT_VERSIONS.items():
         assert models[slug].minimal_client_version == expected_version
 

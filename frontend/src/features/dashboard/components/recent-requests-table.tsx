@@ -443,7 +443,10 @@ export function RecentRequestsTable({
                     {planType ? (
                       <Badge
                         variant="outline"
-                        className={PLAN_CLASS_MAP[planType] ?? PLAN_CLASS_MAP.free}
+                        className={cn(
+                          "inline-block max-w-full rounded-md whitespace-normal [overflow-wrap:anywhere]",
+                          PLAN_CLASS_MAP[planType] ?? PLAN_CLASS_MAP.free,
+                        )}
                       >
                         {planLabel}
                       </Badge>

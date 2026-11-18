@@ -18,6 +18,6 @@ For example, an unpriced Astra request with 1,000 input tokens (500 cached), 100
 
 ## Bundled fallback maintenance
 
-Run `uv run python scripts/update_upstream_metadata.py` to refresh the pricing snapshot and generated stable Codex version. Generation requires both pricing sources and a valid live version; runtime may degrade to one source. Unchanged pricing preserves its timestamp to avoid empty daily updates.
+Run `uv run python scripts/update_upstream_metadata.py` to refresh prices, the stable client version and the public model catalog for that Codex release. Generation validates both price feeds and the tagged catalog before replacing artifacts. Unchanged pricing preserves its timestamp. Historical price entries remain available for retained logs.
 
-The `Update upstream metadata` workflow runs daily at 06:23 UTC or manually. It uses the repository's existing `RELEASE_PLEASE_TOKEN`, updates one maintenance branch without force-pushing, runs catalog/version tests, and opens a normal reviewable PR. It does not merge automatically. A merge conflict stops the workflow for resolution rather than overwriting review changes. No new `CODEX_LB_*` setting is required.
+The `Update upstream metadata` workflow runs daily at 06:23 UTC or manually. It tests the snapshots and updates one maintenance branch against the repository's default branch. A configured publishing token enables automatic PR creation. Without one, the branch is available for review. A merge conflict stops the workflow for resolution.

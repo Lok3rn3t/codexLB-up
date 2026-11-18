@@ -19,10 +19,14 @@ function getIntlLocale(): string {
 }
 
 const numberFormatters = new Map<string, Intl.NumberFormat>();
-const compactFormatter = new Intl.NumberFormat("en-US", {
+const compactOptions = {
   notation: "compact",
   maximumFractionDigits: 2,
-});
+} as const;
+const compactFormatter = new Intl.NumberFormat("en-US", compactOptions);
+const tokenCompactOptions = { ...compactOptions, maximumFractionDigits: 1 } as const;
+const tokenTotalFormatter = new Intl.NumberFormat("en-US", tokenCompactOptions);
+const tokenLowerBoundFormatter = new Intl.NumberFormat("en-US", { ...tokenCompactOptions, roundingMode: "floor" });
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -200,6 +204,10 @@ export function formatNumber(value: unknown): string {
 export function formatCompactNumber(value: unknown): string {
   const numeric = toNumber(value);
   return numeric === null ? "--" : compactFormatter.format(numeric);
+}
+
+export function formatCompactTokenTotal(tokens: number, complete: boolean): string {
+  return complete ? tokenTotalFormatter.format(tokens) : `≥ ${tokenLowerBoundFormatter.format(tokens)}`;
 }
 
 export function formatCurrency(value: unknown): string {

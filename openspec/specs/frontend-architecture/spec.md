@@ -3,7 +3,9 @@
 ## Purpose
 
 Define dashboard surface contracts so settings, account management, and operational views stay coherent across the SPA.
+
 ## Requirements
+
 ### Requirement: Settings page
 
 The Settings page SHALL include sections for: routing settings (sticky threads,
@@ -452,19 +454,6 @@ data is available.
 - **WHEN** the dashboard client requests `GET /api/dashboard/projections`
 - **THEN** the response includes depletion safe-line data and weekly-credit pace data when those calculations are available
 - **AND** the overview endpoint does not need to compute those fields for initial page render
-
-### Requirement: Dashboard usage donuts present credits as stacked remaining and capacity
-
-The dashboard's primary and secondary usage donuts MUST present remaining credits and capacity as two stacked values separated by a horizontal divider: the remaining count above (bold, `data-testid="donut-center-remaining"`) and the capacity count below (muted, `data-testid="donut-center-capacity"`). Both values MUST use locale-aware thousands separators (e.g. `7,331` and `7,560`). Compact-format abbreviation (e.g. `7.33k`) MUST NOT be used in the donut center for these panels.
-
-The primary donut title MUST read `5-Hour Credits`. The secondary donut title MUST read `Weekly Credits`.
-
-#### Scenario: Dashboard donut shows stacked remaining and capacity
-
-- **WHEN** the dashboard renders a usage donut with `remaining=7331` and `total=7560`
-- **THEN** the donut title reads `5-Hour Credits` or `Weekly Credits`
-- **AND** the center renders `7,331` in the remaining element and `7,560` in the capacity element
-- **AND** a divider separates the two values
 
 ### Requirement: API sidebar shows pooled credit bars
 
@@ -4261,3 +4250,34 @@ Frontend dependency refreshes SHALL preserve translation of labels without inter
 
 - **WHEN** the Bun lockfile is refreshed
 - **THEN** regenerating `bun.nix` produces no difference from the committed file
+
+### Requirement: Dashboard quota cards keep account measurements readable
+
+Each overview quota card MUST identify its window and measured average. When available, its forecast MUST appear separately with an estimate label. At compact card widths, the legend MUST leave room for both account identity and percentage. If an identity is truncated, the full display label MUST be available subject to the dashboard privacy setting.
+
+#### Scenario: Compact quota legend
+
+- **WHEN** the 5-hour and weekly cards render long account identities at a narrow viewport
+- **THEN** each account row displays both its identity and its percentage within the card
+- **AND** the forecast is distinguishable from the measured average
+- **AND** private account identities remain concealed when the privacy setting is enabled
+
+### Requirement: Dashboard token total provides compact and exact counts
+
+The overview Tokens card MUST use compact K, M and B notation with at most one fractional digit for large totals. The exact recorded token count MUST be available from the card. For incomplete usage, both presentations MUST retain the ≥ lower-bound indicator and the compact value MUST round down so the displayed bound never exceeds the observed total.
+
+#### Scenario: Partial token total in the weekly overview
+
+- **WHEN** the seven-day token total includes 12,345,678 recorded tokens and some requests lack usage
+- **THEN** the card shows ≥ 12.3M
+- **AND** inspecting the card's total reveals the exact lower bound of 12,345,678 tokens
+
+### Requirement: Request-log plan badges fit their own column
+
+The dashboard request log MUST show the entire plan label inside its Plan cell at the default and manually reduced column widths. The adjacent API Key text MUST remain independently readable.
+
+#### Scenario: Long plan label beside an API key
+
+- **WHEN** the Plan and API Key columns are visible in a row with Business Premium or Academic Researchers Plus
+- **THEN** the full plan name is readable in the cell and exposed to assistive technology
+- **AND** the badge stays within its Plan cell and does not cover the key text
