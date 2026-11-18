@@ -21,8 +21,10 @@ See the [subscription-label requirement](spec.md#requirement-account-labels-foll
 The upstream quota percentage and reset time are measurements. Static capacities
 such as 37,800 multiplied by a reported 96 percent yield 36,288 model credits,
 not an upstream subscription balance or a known remaining-token allowance.
-Account rows therefore keep the actual per-window percentage and separately
-reported purchased credits, without the synthetic Subscription credit column.
+The dashboard account list shows measured percentages in Quota, the plan-based
+estimate in Subscription credits (est.), and the upstream balance in Purchased.
+For example, the same account can show 36,288 estimated model credits and zero
+purchased credits.
 
 Overview donuts show equally weighted percentages of accounts with a known
 window. For example, 0 percent and 80 percent remaining average to 40 percent;

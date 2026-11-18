@@ -21,7 +21,7 @@ describe("AccountList", () => {
     });
   }
 
-  it("renders reported quotas and purchased credits without synthetic subscription credits", () => {
+  it("renders reported quotas alongside estimated subscription credits and purchased credits", () => {
     render(
       <AccountList
         accounts={[
@@ -45,11 +45,10 @@ describe("AccountList", () => {
     expect(screen.getByText("5h")).toBeInTheDocument();
     expect(screen.getByText("Weekly")).toBeInTheDocument();
     expect(screen.getAllByTestId("account-list-quota-meter")).toHaveLength(2);
-    expect(screen.queryByText("5065.20")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Subscription" })).not.toBeInTheDocument();
+    expect(screen.getByText("5065.20")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Subscription credits (est.)" })).toBeInTheDocument();
     expect(screen.getByText("42.50")).toBeInTheDocument();
     expect(screen.getByText("On")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-account-list").firstElementChild).toHaveClass("min-w-[76rem]");
   });
 
   it("renders primary idle warm-up attempts as 5h", () => {
@@ -267,7 +266,44 @@ describe("AccountList", () => {
     expect(rowNames()).toEqual(["Low Account", "Empty Account", "Unknown Account"]);
   });
 
-  it("sorts purchased credits without replacing subscription quota", async () => {
+  it("selects the estimate by window and sorts zero before positive values and missing estimates last", async () => {
+    const user = userEvent.setup();
+    const accounts = [
+      createAccountSummary({
+        accountId: "weekly", displayName: "Weekly Account", windowMinutesPrimary: null,
+        remainingCreditsPrimary: 99, remainingCreditsSecondary: null, creditsBalance: 21,
+      }),
+      createAccountSummary({
+        accountId: "monthly", displayName: "Monthly Account", windowMinutesPrimary: null,
+        windowMinutesSecondary: null, windowMinutesMonthly: 43_200,
+        remainingCreditsMonthly: 9, remainingCreditsSecondary: 500, creditsUnlimited: true,
+      }),
+      createAccountSummary({
+        accountId: "zero", displayName: "Depleted Account", remainingCreditsPrimary: 100,
+        remainingCreditsSecondary: 0, creditsBalance: null,
+      }),
+      createAccountSummary({
+        accountId: "primary", displayName: "Primary Account", remainingCreditsPrimary: 10,
+        remainingCreditsSecondary: null, creditsBalance: 0,
+      }),
+    ];
+    render(<AccountList accounts={accounts} />);
+
+    const [weekly, monthly, depleted, primary] = screen.getAllByTestId("account-list-row");
+    expect(within(weekly).getByText("-")).toBeInTheDocument();
+    expect(within(weekly).getByText("21.00")).toBeInTheDocument();
+    expect(within(monthly).getByText("9.00")).toBeInTheDocument();
+    expect(within(monthly).getByText("Unlimited")).toBeInTheDocument();
+    expect(within(depleted).getByText("0.00")).toBeInTheDocument();
+    expect(within(depleted).getByText("-")).toBeInTheDocument();
+    expect(within(primary).getByText("10.00")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Subscription credits (est.)" }));
+    expect(rowNames()).toEqual(["Depleted Account", "Monthly Account", "Primary Account", "Weekly Account"]);
+    await user.click(screen.getByRole("button", { name: "Subscription credits (est.), sorted ascending" }));
+    expect(rowNames()).toEqual(["Primary Account", "Monthly Account", "Depleted Account", "Weekly Account"]);
+  });
+
+  it("sorts purchased credits independently of estimated subscription credits", async () => {
     const user = userEvent.setup();
     render(
       <AccountList

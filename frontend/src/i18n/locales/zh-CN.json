@@ -678,7 +678,7 @@
   "dashboard.accountList.headers.status": "状态",
   "dashboard.accountList.headers.plan": "套餐",
   "dashboard.accountList.headers.quota": "Quota",
-  "dashboard.accountList.headers.subscriptionCredits": "订阅额度",
+  "dashboard.accountList.headers.subscriptionCredits": "订阅额度（估算）",
   "dashboard.accountList.headers.purchasedCredits": "购买额度",
   "dashboard.accountList.headers.warmup": "Warm-up",
   "dashboard.accountList.idShort": "ID {{id}}",
@@ -2050,6 +2050,6 @@
   "usage.quota.averageNote": "已报告百分比的等权平均值。不含无测量值的账户。",
   "usage.quota.fiveHour": "5 小时配额",
   "usage.quota.weekly": "每周配额",
-  "usage.quota.safeEstimate": "按套餐容量估算：安全用量 {{percent}}%。",
+  "usage.quota.safeEstimate": "按套餐容量估算：安全用量 {{percent}}。",
   "usage.quota.estimateNote": "基于套餐容量和用量历史的估算。这些模型额度并非测得的 token 限额或上游额度余额。"
 }

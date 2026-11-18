@@ -29,6 +29,7 @@ const ACCOUNT_LIST_SORT_KEYS: AccountListSortKey[] = [
   "status",
   "plan",
   "quota",
+  "subscriptionCredits",
   "purchasedCredits",
   "warmup",
 ];
@@ -69,9 +70,6 @@ function readStoredAccountListSort(): AccountListSort {
   }
   try {
     const parsed = JSON.parse(stored) as { key?: unknown; direction?: unknown };
-    if (parsed.key === "subscriptionCredits") {
-      parsed.key = "quota";
-    }
     if (parsed.key === "credits") {
       parsed.key = "purchasedCredits";
     }

@@ -678,7 +678,7 @@
   "dashboard.accountList.headers.status": "Status",
   "dashboard.accountList.headers.plan": "Plan",
   "dashboard.accountList.headers.quota": "Quota",
-  "dashboard.accountList.headers.subscriptionCredits": "Subscription",
+  "dashboard.accountList.headers.subscriptionCredits": "Subscription credits (est.)",
   "dashboard.accountList.headers.purchasedCredits": "Purchased",
   "dashboard.accountList.headers.warmup": "Warm-up",
   "dashboard.accountList.idShort": "ID {{id}}",
@@ -2050,6 +2050,6 @@
   "usage.quota.averageNote": "Equal-weight average of reported percentages. Accounts without a measurement are excluded.",
   "usage.quota.fiveHour": "5-hour quota",
   "usage.quota.weekly": "Weekly quota",
-  "usage.quota.safeEstimate": "Plan-capacity estimate: safe usage {{percent}}%.",
+  "usage.quota.safeEstimate": "Plan-capacity estimate: safe usage {{percent}}.",
   "usage.quota.estimateNote": "Estimate based on plan capacities and usage history. These model credits are not a measured token allowance or an upstream credit balance."
 }

@@ -678,7 +678,7 @@
   "dashboard.accountList.headers.status": "상태",
   "dashboard.accountList.headers.plan": "Plan",
   "dashboard.accountList.headers.quota": "Quota",
-  "dashboard.accountList.headers.subscriptionCredits": "구독 할당량",
+  "dashboard.accountList.headers.subscriptionCredits": "구독 크레딧 (추정)",
   "dashboard.accountList.headers.purchasedCredits": "구매 크레딧",
   "dashboard.accountList.headers.warmup": "Warm-up",
   "dashboard.accountList.idShort": "ID {{id}}",
@@ -2050,6 +2050,6 @@
   "usage.quota.averageNote": "보고된 비율의 동일 가중 평균입니다. 측정값이 없는 계정은 제외됩니다.",
   "usage.quota.fiveHour": "5시간 할당량",
   "usage.quota.weekly": "주간 할당량",
-  "usage.quota.safeEstimate": "요금제 용량 추정: 안전 사용량 {{percent}}%.",
+  "usage.quota.safeEstimate": "요금제 용량 추정: 안전 사용량 {{percent}}.",
   "usage.quota.estimateNote": "요금제 용량과 사용 이력에 따른 추정입니다. 모델 크레딧은 측정된 토큰 한도나 업스트림 크레딧 잔액이 아닙니다."
 }

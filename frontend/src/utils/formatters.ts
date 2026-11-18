@@ -19,10 +19,12 @@ function getIntlLocale(): string {
 }
 
 const numberFormatters = new Map<string, Intl.NumberFormat>();
-const compactFormatter = new Intl.NumberFormat("en-US", {
+const compactOptions = {
   notation: "compact",
   maximumFractionDigits: 2,
-});
+} as const;
+const compactFormatter = new Intl.NumberFormat("en-US", compactOptions);
+const compactFloorFormatter = new Intl.NumberFormat("en-US", { ...compactOptions, roundingMode: "floor" });
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -197,9 +199,10 @@ export function formatNumber(value: unknown): string {
   return numeric === null ? "--" : getNumberFormatter().format(numeric);
 }
 
-export function formatCompactNumber(value: unknown): string {
+export function formatCompactNumber(value: unknown, rounding: "nearest" | "floor" = "nearest"): string {
   const numeric = toNumber(value);
-  return numeric === null ? "--" : compactFormatter.format(numeric);
+  const formatter = rounding === "floor" ? compactFloorFormatter : compactFormatter;
+  return numeric === null ? "--" : formatter.format(numeric);
 }
 
 export function formatCurrency(value: unknown): string {

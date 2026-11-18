@@ -186,6 +186,21 @@ describe("buildRemainingItems", () => {
 });
 
 describe("dashboard measured token coverage", () => {
+  it.each([
+    [1_250, "1.25K", "1.25K", "1,250"],
+    [999_999, "1M", "999.99K", "999,999"],
+    [958_815_427, "958.82M", "958.81M", "958,815,427"],
+    [2_340_000_000, "2.34B", "2.34B", "2,340,000,000"],
+  ] as const)("exposes compact and exact token totals for %s", (tokens, compact, lowerBound, exact) => {
+    const overview = createDashboardOverview();
+    const metrics = overview.summary.metrics!;
+    metrics.tokens = tokens;
+    metrics.tokenUsage = { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 };
+    expect(buildDashboardView(overview, []).stats[1]).toMatchObject({ value: compact, exactValue: exact });
+    metrics.tokenUsage.missingRequests = 1;
+    expect(buildDashboardView(overview, []).stats[1]).toMatchObject({ value: `≥ ${lowerBound}`, exactValue: `≥ ${exact}` });
+  });
+
   it("compares token periods only when both periods have complete measurements", () => {
     const overview = createDashboardOverview();
     const coverage = { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 };

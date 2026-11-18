@@ -42,6 +42,7 @@ export type RemainingItem = {
 export type DashboardStat = {
   label: string;
   value: string;
+  exactValue?: string;
   meta?: string;
   comparison?: DashboardStatComparison;
   icon: LucideIcon;
@@ -691,6 +692,8 @@ export function buildDashboardView(
   const { isDark, showAccountBurnrate } = resolveDashboardViewOptions(optionsOrIsDark);
   const metrics = overview.summary.metrics;
   const tokenUsage = summarizeTokenUsage(metrics?.tokens, metrics?.tokenUsage);
+  const largeTokenTotal = metrics?.tokens != null && metrics.tokens >= 1_000 ? metrics.tokens : null;
+  const tokenPrefix = tokenUsage.complete ? "" : "≥ ";
   const cost = overview.summary.cost.totalUsd;
   const timeframeLabel = (() => {
     const formatted = formatWindowMinutes(overview.timeframe.windowMinutes);
@@ -731,7 +734,10 @@ export function buildDashboardView(
     },
     {
       label: t("dashboard.stats.tokens", { timeframe: timeframeLabel }),
-      value: tokenUsage.value,
+      value: largeTokenTotal === null
+        ? tokenUsage.value
+        : tokenPrefix + formatCompactNumber(largeTokenTotal, tokenUsage.complete ? "nearest" : "floor"),
+      exactValue: largeTokenTotal === null ? undefined : tokenPrefix + formatNumber(largeTokenTotal),
       meta: `${formatCachedTokensMeta(metrics?.tokens, metrics?.cachedInputTokens)} · ${tokenUsage.note}`,
       comparison: buildStatComparison(metrics?.tokens, comparison?.previous.tokens ?? 0,
         canCompare && tokenUsage.complete && summarizeTokenUsage(comparison?.previous.tokens, comparison?.previous.tokenUsage).complete),

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 
 import type { SparklineChartProps } from "@/components/sparkline-chart";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { DashboardStat } from "@/features/dashboard/utils";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +51,16 @@ export function StatsGrid({ stats }: StatsGridProps) {
             </div>
             <div className="mt-1">
               <div data-testid="stat-value-row" className="flex items-baseline gap-2">
-                <p className="text-[1.625rem] font-semibold tracking-[-0.02em]">{stat.value}</p>
+                <p className="text-[1.625rem] font-semibold tracking-[-0.02em]">
+                  {stat.exactValue ? (
+                    <Tooltip>
+                      <TooltipTrigger className="cursor-help rounded-sm focus-visible:outline-2 focus-visible:outline-ring">
+                        {stat.value}
+                      </TooltipTrigger>
+                      <TooltipContent>{stat.exactValue}</TooltipContent>
+                    </Tooltip>
+                  ) : stat.value}
+                </p>
                 {stat.comparison ? (
                   <p className={cn("text-xs font-medium", COMPARISON_STYLES[stat.comparison.tone])}>
                     {stat.comparison.text}

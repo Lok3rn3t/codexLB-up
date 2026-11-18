@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import type { AccountAction } from "@/features/dashboard/components/account-card";
 import {
+  estimatedSubscriptionCredits,
+  formatCreditValue,
   formatPurchasedCredits,
 } from "@/features/dashboard/account-credit-display";
 import type { AccountSummary } from "@/features/dashboard/schemas";
@@ -28,7 +30,7 @@ import {
 
 const ACCOUNT_LIST_VISIBLE_ROWS = 8;
 const ACCOUNT_LIST_ROW_HEIGHT_REM = 4.5;
-const ACCOUNT_LIST_COLUMNS = "minmax(13rem,1.3fr) 7.75rem 5rem minmax(14rem,1.2fr) 7.5rem minmax(8rem,0.8fr) 8rem";
+const ACCOUNT_LIST_COLUMNS = "minmax(13rem,1.3fr) 7.75rem 5rem minmax(14rem,1.2fr) 9.5rem 7.5rem minmax(8rem,0.8fr) 8rem";
 
 type AccountListProps = {
   accounts: AccountSummary[];
@@ -38,7 +40,7 @@ type AccountListProps = {
   onAction?: (account: AccountSummary, action: AccountAction) => void;
 };
 
-export type AccountListSortKey = "account" | "status" | "plan" | "quota" | "purchasedCredits" | "warmup";
+export type AccountListSortKey = "account" | "status" | "plan" | "quota" | "subscriptionCredits" | "purchasedCredits" | "warmup";
 export type SortDirection = "asc" | "desc";
 export type AccountListSort = {
   key: AccountListSortKey;
@@ -50,6 +52,7 @@ const SORTABLE_HEADERS: Array<{ key: AccountListSortKey; label: string }> = [
   { key: "status", label: "Status" },
   { key: "plan", label: "Plan" },
   { key: "quota", label: "Quota" },
+  { key: "subscriptionCredits", label: "Subscription credits (est.)" },
   { key: "purchasedCredits", label: "Purchased" },
   { key: "warmup", label: "Warm-up" },
 ];
@@ -59,6 +62,7 @@ const SORTABLE_HEADER_KEY: Record<AccountListSortKey, string> = {
   status: "dashboard.accountList.headers.status",
   plan: "dashboard.accountList.headers.plan",
   quota: "dashboard.accountList.headers.quota",
+  subscriptionCredits: "dashboard.accountList.headers.subscriptionCredits",
   purchasedCredits: "dashboard.accountList.headers.purchasedCredits",
   warmup: "dashboard.accountList.headers.warmup",
 };
@@ -173,6 +177,9 @@ function compareAccountsBySort(a: AccountSummary, b: AccountSummary, sort: Accou
     case "quota":
       result = compareNullableNumber(accountQuotaSortValue(a), accountQuotaSortValue(b), sort.direction);
       break;
+    case "subscriptionCredits":
+      result = compareNullableNumber(estimatedSubscriptionCredits(a), estimatedSubscriptionCredits(b), sort.direction);
+      break;
     case "purchasedCredits":
       result = compareNullableNumber(accountPurchasedCreditsSortValue(a), accountPurchasedCreditsSortValue(b), sort.direction);
       break;
@@ -185,7 +192,7 @@ function compareAccountsBySort(a: AccountSummary, b: AccountSummary, sort: Accou
     result = compareText(accountTitle(a), accountTitle(b));
     return sort.direction === "asc" ? result : -result;
   }
-  if (sort.key === "quota" || sort.key === "purchasedCredits") {
+  if (sort.key === "quota" || sort.key === "subscriptionCredits" || sort.key === "purchasedCredits") {
     return result;
   }
   return sort.direction === "asc" ? result : -result;
@@ -221,7 +228,7 @@ function SortHeader({
       aria-label={sortLabel}
       onClick={() => onSort(sortKey)}
     >
-      <span className="truncate">{label}</span>
+      <span>{label}</span>
       <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
     </button>
   );
@@ -331,7 +338,7 @@ export function AccountList({
       className="overflow-x-auto rounded-lg border bg-card"
     >
       <div
-        className="min-w-[76rem] divide-y overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="min-w-[80rem] divide-y overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ maxHeight: `${ACCOUNT_LIST_VISIBLE_ROWS * ACCOUNT_LIST_ROW_HEIGHT_REM}rem` }}
       >
         <div
@@ -401,6 +408,9 @@ export function AccountList({
               <StatusBadge status={status} />
               <span className="text-xs text-muted-foreground">{formatPlanLabel(account.planType)}</span>
               <AccountQuotaCells account={account} />
+              <span className="font-medium tabular-nums">
+                {formatCreditValue(estimatedSubscriptionCredits(account))}
+              </span>
 	              <span className="font-medium tabular-nums">
 	                {formatPurchasedCredits(account, t("common.states.unlimited"))}
 	              </span>
