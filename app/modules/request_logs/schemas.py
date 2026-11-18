@@ -4,7 +4,8 @@ from datetime import datetime
 
 from pydantic import Field
 
-from app.modules.shared.schemas import DashboardModel
+from app.core.usage.logs import UsageCompleteness
+from app.modules.shared.schemas import DashboardModel, TokenUsageCoverage
 
 
 class RequestLogCostBreakdown(DashboardModel):
@@ -55,6 +56,7 @@ class RequestLogEntry(DashboardModel):
     upstream_error_code: str | None = None
     bridge_stage: str | None = None
     tokens: int | None = None
+    usage_completeness: UsageCompleteness = "missing"
     input_tokens: int | None = None
     output_tokens: int | None = None
     output_tokens_raw: int | None = None
@@ -111,6 +113,7 @@ class ConversationModelStat(DashboardModel):
     cached_input_tokens: int | None
     total_output_tokens: int
     total_cost_usd: float
+    token_usage: TokenUsageCoverage = Field(default_factory=TokenUsageCoverage)
 
 
 class ConversationEntry(DashboardModel):
@@ -127,6 +130,7 @@ class ConversationEntry(DashboardModel):
     total_tokens: int
     cached_input_tokens: int | None
     total_cost_usd: float
+    token_usage: TokenUsageCoverage = Field(default_factory=TokenUsageCoverage)
 
 
 class ConversationsResponse(DashboardModel):

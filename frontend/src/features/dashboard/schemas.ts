@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TokenUsageCoverageSchema } from "@/utils/token-usage";
 
 import { AccountAdditionalQuotaSchema, AccountSummarySchema } from "@/features/accounts/schemas";
 import type { AccountSummary } from "@/features/accounts/schemas";
@@ -61,6 +62,7 @@ const UsageCostSchema = z.object({
 const DashboardMetricsSchema = z.object({
   requests: z.number().nullable(),
   tokens: z.number().nullable(),
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   cachedInputTokens: z.number().nullable(),
   errorRate: z.number().nullable(),
   errorCount: z.number().nullable(),
@@ -71,6 +73,7 @@ const DashboardMetricsSchema = z.object({
 });
 
 const DashboardMetricsComparisonPreviousSchema = z.object({
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   requests: z.number(),
   tokens: z.number(),
   costUsd: z.number(),
@@ -237,6 +240,7 @@ export const RequestLogSchema = z.object({
   bridgeStage: z.string().nullable().optional().default(null),
   tokens: z.number().nullable(),
   inputTokens: z.number().nullable().optional().default(null),
+  usageCompleteness: z.enum(["complete", "partial", "missing"]).optional(),
   outputTokens: z.number().nullable().optional().default(null),
   outputTokensRaw: z.number().nullable().optional().default(null),
   reasoningTokens: z.number().nullable().optional(),
@@ -326,6 +330,7 @@ const ConversationModelEffortSchema = z.object({
 });
 
 export const ConversationModelStatSchema = z.object({
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   modelEffort: ConversationModelEffortSchema,
   reqs: z.number().int().nonnegative(),
   totalElapsedTime: z.number().int().nonnegative(),
@@ -336,6 +341,7 @@ export const ConversationModelStatSchema = z.object({
 });
 
 export const ConversationEntrySchema = z.object({
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   conversationId: z.string(),
   firstRequest: z.iso.datetime({ offset: true }),
   lastRequest: z.iso.datetime({ offset: true }),

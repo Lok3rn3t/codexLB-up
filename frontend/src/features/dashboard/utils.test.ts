@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { DashboardOverviewSchema } from "@/features/dashboard/schemas";
 import type { AccountSummary, Depletion } from "@/features/dashboard/schemas";
 import {
-  applySecondaryConstraint,
   buildDashboardView,
   buildDepletionView,
   buildRemainingItems,
@@ -118,135 +117,24 @@ function remainingItem(overrides: Partial<RemainingItem> & Pick<RemainingItem, "
   };
 }
 
-describe("applySecondaryConstraint", () => {
-  it("no-op when 7d remaining credits >= 5h remaining credits", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 180, remainingPercent: 80 })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 6000, remainingPercent: 79 })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(180);
-    expect(result[0].remainingPercent).toBe(80);
-  });
-
-  it("caps 5h to 7d absolute credits when 7d remaining < 5h remaining", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 75, remainingPercent: 1 })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(75);
-    expect(result[0].remainingPercent).toBeCloseTo(90 * (75 / 200));
-  });
-
-  it("zeros 5h when 7d is fully depleted", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 0, remainingPercent: 0 })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(0);
-    expect(result[0].remainingPercent).toBe(0);
-  });
-
-  it("no-op when 7d has plenty even with low percent (different capacity scales)", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 3780, remainingPercent: 50 })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(200);
-    expect(result[0].remainingPercent).toBe(90);
-  });
-
-  it("preserves null remainingPercent on capped items", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: null })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 50 })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(50);
-    expect(result[0].remainingPercent).toBeNull();
-  });
-
-  it("returns primary unchanged when no matching secondary account exists", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 })];
-    const secondary = [remainingItem({ accountId: "acc-2", value: 0, remainingPercent: 0 })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(200);
-    expect(result[0].remainingPercent).toBe(90);
-  });
-
-  it("does not clamp primary when secondary data is missing", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 0, remainingPercent: null })];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(200);
-    expect(result[0].remainingPercent).toBe(90);
-  });
-
-  it("handles multiple accounts independently", () => {
-    const primary = [
-      remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 }),
-      remainingItem({ accountId: "acc-2", value: 150, remainingPercent: 60 }),
-    ];
-    const secondary = [
-      remainingItem({ accountId: "acc-1", value: 75, remainingPercent: 1 }),
-      remainingItem({ accountId: "acc-2", value: 5000, remainingPercent: 70 }),
-    ];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(75);
-    expect(result[0].remainingPercent).toBeCloseTo(90 * (75 / 200));
-    expect(result[1].value).toBe(150);
-    expect(result[1].remainingPercent).toBe(60);
-  });
-
-  it("returns empty array when primary is empty", () => {
-    const result = applySecondaryConstraint([], [remainingItem({ accountId: "acc-1" })]);
-    expect(result).toEqual([]);
-  });
-
-  it("does not mutate original primary items", () => {
-    const primary = [remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 })];
-    const secondary = [remainingItem({ accountId: "acc-1", value: 0, remainingPercent: 0 })];
-
-    applySecondaryConstraint(primary, secondary);
-
-    expect(primary[0].value).toBe(200);
-    expect(primary[0].remainingPercent).toBe(90);
-  });
-
-  it("caps to zero when secondary items are all zero-valued", () => {
-    const primary = [
-      remainingItem({ accountId: "acc-1", value: 200, remainingPercent: 90 }),
-      remainingItem({ accountId: "acc-2", value: 150, remainingPercent: 60 }),
-    ];
-    const secondary = [
-      remainingItem({ accountId: "acc-1", value: 0, remainingPercent: 0 }),
-      remainingItem({ accountId: "acc-2", value: 0, remainingPercent: 0 }),
-    ];
-
-    const result = applySecondaryConstraint(primary, secondary);
-
-    expect(result[0].value).toBe(0);
-    expect(result[1].value).toBe(0);
-  });
-});
-
 describe("buildRemainingItems", () => {
+  it("uses reported percentages independently of static plan capacities and excludes unknown quota", () => {
+    const accounts = [
+      account({ accountId: "small", email: "small@example.com", capacityCreditsPrimary: 225, remainingCreditsPrimary: 180, usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 1 } }),
+      account({ accountId: "large", email: "large@example.com", capacityCreditsPrimary: 1500, remainingCreditsPrimary: 300, usage: { primaryRemainingPercent: 20, secondaryRemainingPercent: 90 } }),
+      account({ accountId: "empty", email: "empty@example.com", usage: { primaryRemainingPercent: 0, secondaryRemainingPercent: 0 } }),
+      account({ accountId: "unknown", email: "unknown@example.com" }),
+    ];
+    expect(buildRemainingItems(accounts, "primary").map((item) => item.value)).toEqual([80, 20, 0]);
+    expect(buildRemainingItems(accounts, "secondary").map((item) => item.value)).toEqual([1, 90, 0]);
+  });
+
   it("keeps default labels for non-duplicate accounts", () => {
     const items = buildRemainingItems(
       [
-        account({ accountId: "acc-1", email: "one@example.com" }),
-        account({ accountId: "acc-2", email: "two@example.com" }),
+        account({ accountId: "acc-1", email: "one@example.com", usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 60 } }),
+        account({ accountId: "acc-2", email: "two@example.com", usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 60 } }),
       ],
-      null,
       "primary",
     );
 
@@ -259,11 +147,10 @@ describe("buildRemainingItems", () => {
     const duplicateB = "7f9de2ad-7621-4a6f-88bc-ec7f3d914701_91a95cee";
     const items = buildRemainingItems(
       [
-        account({ accountId: duplicateA, email: "dup@example.com", isEmailDuplicate: false }),
-        account({ accountId: duplicateB, email: "dup@example.com", isEmailDuplicate: true }),
-        account({ accountId: "acc-3", email: "unique@example.com" }),
+        account({ accountId: duplicateA, email: "dup@example.com", usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 60 }, isEmailDuplicate: false }),
+        account({ accountId: duplicateB, email: "dup@example.com", usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 60 }, isEmailDuplicate: true }),
+        account({ accountId: "acc-3", email: "unique@example.com", usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 60 } }),
       ],
-      null,
       "primary",
     );
 
@@ -293,8 +180,36 @@ describe("buildRemainingItems", () => {
       windowMinutesMonthly: 43_200,
     });
 
-    expect(buildRemainingItems([monthly], null, "primary")).toEqual([]);
-    expect(buildRemainingItems([monthly], null, "secondary")).toEqual([]);
+    expect(buildRemainingItems([monthly], "primary")).toEqual([]);
+    expect(buildRemainingItems([monthly], "secondary")).toEqual([]);
+  });
+});
+
+describe("dashboard measured token coverage", () => {
+  it("compares token periods only when both periods have complete measurements", () => {
+    const overview = createDashboardOverview();
+    const coverage = { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 };
+    overview.summary.metrics!.tokens = 100;
+    overview.summary.metrics!.tokenUsage = coverage;
+    overview.summary.comparison = { canCompare: true, previous: { requests: 1, tokens: 200, costUsd: 0, tokenUsage: coverage } };
+    expect(buildDashboardView(overview, []).stats[1]?.comparison).toEqual({ text: "▼ 50%", tone: "negative" });
+    overview.summary.comparison.previous.tokenUsage = { ...coverage, unknownRequests: 1 };
+    expect(buildDashboardView(overview, []).stats[1]?.comparison).toBeUndefined();
+  });
+
+  it("shows unknown request usage separately from measured zero and partial totals", () => {
+    const overview = createDashboardOverview();
+    const metrics = overview.summary.metrics!;
+    metrics.tokens = 0;
+    metrics.tokenUsage = { completeRequests: 0, partialRequests: 0, missingRequests: 1, unknownRequests: 0 };
+    expect(buildDashboardView(overview, []).stats[1]?.value).toBe("--");
+    expect(buildDashboardView(overview, []).stats[1]?.meta).toContain("1 missing");
+    metrics.tokenUsage = { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 };
+    expect(buildDashboardView(overview, []).stats[1]?.value).toBe("0");
+    metrics.tokens = 130;
+    metrics.tokenUsage = { completeRequests: 0, partialRequests: 1, missingRequests: 0, unknownRequests: 0 };
+    expect(buildDashboardView(overview, []).stats[1]?.value).toBe("≥ 130");
+    expect(buildDashboardView(overview, []).stats[1]?.meta).toContain("1 partial");
   });
 });
 
@@ -938,7 +853,7 @@ describe("buildDashboardView", () => {
     expect(view.weeklyCreditPace?.accountCount).toBe(1);
   });
 
-  it("keeps donut totals anchored to window capacity even when displayed slices are constrained", () => {
+  it("keeps reported quota percentages independent of estimated window capacities", () => {
     const overview = createDashboardOverview({
       accounts: [
         account({
@@ -1001,11 +916,11 @@ describe("buildDashboardView", () => {
     const view = buildDashboardView(overview, createDefaultRequestLogs(), false);
 
     expect(view.primaryUsageItems).toHaveLength(2);
-    expect(view.primaryUsageItems[0]?.value).toBeCloseTo(75.6);
-    expect(view.primaryUsageItems[1]?.value).toBeCloseTo(135);
+    expect(view.primaryUsageItems[0]?.value).toBeCloseTo(90);
+    expect(view.primaryUsageItems[1]?.value).toBeCloseTo(60);
     expect(overview.summary.primaryWindow.capacityCredits).toBe(450);
     expect(overview.summary.secondaryWindow?.capacityCredits).toBe(15120);
-    expect(view.primaryUsageItems.reduce((total, item) => total + item.value, 0)).toBeCloseTo(210.6);
+    expect(view.primaryUsageItems.reduce((total, item) => total + item.value, 0)).toBeCloseTo(150);
   });
 
   it("keeps primary totals intact for accounts without secondary usage data", () => {
@@ -1085,7 +1000,7 @@ describe("buildDashboardView", () => {
     const view = buildDashboardView(overview, createDefaultRequestLogs(), false);
 
     expect(view.primaryUsageItems).toHaveLength(1);
-    expect(view.primaryUsageItems[0]?.value).toBeCloseTo(202.5);
+    expect(view.primaryUsageItems[0]?.value).toBeCloseTo(90);
     expect(view.primaryUsageItems[0]?.remainingPercent).toBe(90);
     expect(overview.summary.primaryWindow.capacityCredits).toBe(225);
   });
@@ -1252,7 +1167,7 @@ describe("buildDashboardView", () => {
     expect(dailyView.stats[2]?.meta).toBe("Avg/hr $1.00");
   });
 
-  it("adds previous-window comparison indicators to requests tokens and cost cards", () => {
+  it("keeps request and cost comparisons but suppresses tokens with unknown coverage", () => {
     const overview = createDashboardOverview();
 
     const view = buildDashboardView(
@@ -1289,7 +1204,7 @@ describe("buildDashboardView", () => {
     );
 
     expect(view.stats[0]?.comparison).toEqual({ text: "▲ 50%", tone: "positive" });
-    expect(view.stats[1]?.comparison).toEqual({ text: "▼ 50%", tone: "negative" });
+    expect(view.stats[1]?.comparison).toBeUndefined();
     expect(view.stats[2]?.comparison).toEqual({ text: "▲ 50%", tone: "positive" });
     expect(view.stats[view.stats.length - 1]?.comparison).toBeUndefined();
   });

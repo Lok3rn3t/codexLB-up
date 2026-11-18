@@ -5,7 +5,7 @@ from typing import List
 
 from pydantic import Field, PrivateAttr, field_validator
 
-from app.modules.shared.schemas import DashboardModel
+from app.modules.shared.schemas import DashboardModel, TokenUsageCoverage
 
 
 class UsageTrendPoint(DashboardModel):
@@ -30,6 +30,7 @@ class AccountRequestUsage(DashboardModel):
     total_tokens: int = 0
     cached_input_tokens: int = 0
     total_cost_usd: float = 0.0
+    token_usage: TokenUsageCoverage = Field(default_factory=TokenUsageCoverage)
 
 
 class AccountUsageResetCredits(DashboardModel):

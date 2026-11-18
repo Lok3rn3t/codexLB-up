@@ -22,6 +22,7 @@ from sqlalchemy import delete, select, update
 
 import app.modules.request_logs.repository as request_logs_repository_module
 from app.core.crypto import TokenEncryptor
+from app.core.usage.types import TokenUsageCoverage
 from app.core.utils.time import utcnow
 from app.db.models import (
     Account,
@@ -420,6 +421,19 @@ def _project_demand_slot_units(slots) -> dict:
     return projected
 
 
+def _assert_activity_equal(actual, expected) -> None:
+    # Legacy folded buckets have sums, but cannot prove per-request coverage.
+    # Coverage may move to unknown without changing any aggregate quantity.
+    assert sum(actual.token_usage.__dict__.values()) == actual.request_count
+    assert actual.token_usage.complete_requests <= expected.token_usage.complete_requests
+    assert actual.token_usage.partial_requests <= expected.token_usage.partial_requests
+    assert actual.token_usage.missing_requests <= expected.token_usage.missing_requests
+    assert replace(actual, cost_usd=0.0, token_usage=TokenUsageCoverage()) == replace(
+        expected, cost_usd=0.0, token_usage=TokenUsageCoverage()
+    )
+    assert actual.cost_usd == pytest.approx(expected.cost_usd, rel=1e-9, abs=1e-12)
+
+
 def _assert_snapshots_equal(actual: dict, expected: dict, *, skip_keys: tuple[str, ...] = ()) -> None:
     assert actual.keys() == expected.keys()
     for key, expected_value in expected.items():
@@ -429,8 +443,7 @@ def _assert_snapshots_equal(actual: dict, expected: dict, *, skip_keys: tuple[st
         if key.startswith("buckets"):
             _assert_bucket_lists_equal(actual_value, expected_value, key)
         elif key.startswith("activity"):
-            assert replace(actual_value, cost_usd=0.0) == replace(expected_value, cost_usd=0.0), key
-            assert actual_value.cost_usd == pytest.approx(expected_value.cost_usd, rel=1e-9, abs=1e-12), key
+            _assert_activity_equal(actual_value, expected_value)
         elif key == "demand":
             assert actual_value.keys() == expected_value.keys(), key
             for demand_key, expected_entry in expected_value.items():
@@ -555,7 +568,7 @@ async def test_reader_is_consistent_under_concurrent_fold_commit(db_setup, monke
     assert fold_injections["count"] == 1
     assert await _watermark() == TARGET_W
     expected = reference["activity_between"]
-    assert replace(activity, cost_usd=0.0) == replace(expected, cost_usd=0.0)
+    _assert_activity_equal(activity, expected)
     assert activity.cost_usd == pytest.approx(expected.cost_usd, rel=1e-9)
 
 
@@ -702,9 +715,8 @@ async def test_statistics_survive_retention_pruning_folded_raw(db_setup, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_dashboard_overview_json_is_identical_before_and_after_fold(async_client, db_setup, monkeypatch):
-    """API-level equivalence: the exact overview JSON must not change when
-    the same window flips from raw-scanned to rollup-served."""
+async def test_dashboard_overview_totals_survive_fold_and_disclose_coverage(async_client, db_setup, monkeypatch):
+    """Totals survive folding, while coverage becomes explicitly unknown."""
     fixed_now = utcnow().replace(microsecond=0)
     monkeypatch.setattr("app.modules.dashboard.service.utcnow", lambda: fixed_now)
 
@@ -740,7 +752,20 @@ async def test_dashboard_overview_json_is_identical_before_and_after_fold(async_
 
     after = await async_client.get("/api/dashboard/overview?timeframe=7d")
     assert after.status_code == 200
-    assert after.json() == before.json()
+    before_payload, after_payload = before.json(), after.json()
+    assert before_payload["summary"]["metrics"].pop("tokenUsage") == {
+        "completeRequests": 12,
+        "partialRequests": 0,
+        "missingRequests": 0,
+        "unknownRequests": 0,
+    }
+    assert after_payload["summary"]["metrics"].pop("tokenUsage") == {
+        "completeRequests": 0,
+        "partialRequests": 0,
+        "missingRequests": 0,
+        "unknownRequests": 12,
+    }
+    assert after_payload == before_payload
 
 
 @pytest.mark.asyncio

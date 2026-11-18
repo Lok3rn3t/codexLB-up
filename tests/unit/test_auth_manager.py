@@ -347,14 +347,15 @@ async def test_forced_refresh_still_fails_closed_when_reauth_is_required(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_refresh_account_preserves_plan_type_when_missing(monkeypatch):
+@pytest.mark.parametrize("upstream_plan", [None, "prolite", "self_serve_business_prolite"])
+async def test_refresh_account_preserves_plan_identity(monkeypatch, upstream_plan):
     async def _fake_refresh(_: str, **_kwargs: object) -> TokenRefreshResult:
         return TokenRefreshResult(
             access_token="new-access",
             refresh_token="new-refresh",
             id_token="new-id",
             account_id="acc_1",
-            plan_type=None,
+            plan_type=upstream_plan,
             email=None,
         )
 
@@ -377,9 +378,9 @@ async def test_refresh_account_preserves_plan_type_when_missing(monkeypatch):
 
     updated = await manager.refresh_account(account)
 
-    assert updated.plan_type == "pro"
+    assert updated.plan_type == (upstream_plan or "pro")
     assert repo.tokens_payload is not None
-    assert repo.tokens_payload["plan_type"] == "pro"
+    assert repo.tokens_payload["plan_type"] == (upstream_plan or "pro")
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,4 @@
+import { summarizeTokenUsage, type TokenUsageCoverage } from "@/utils/token-usage";
 import { useTranslation } from "react-i18next";
 
 import type { ApiKey } from "@/features/api-keys/schemas";
@@ -17,6 +18,7 @@ type BreakdownRow = {
   labelSuffix: string;
   value: number;
   share: number;
+  tokenUsage?: TokenUsageCoverage;
 };
 
 function isExpired(apiKey: ApiKey): boolean {
@@ -68,6 +70,7 @@ function buildBreakdownRows(apiKeys: ApiKey[], metric: UsageMetric): BreakdownRo
         label: apiKey.name,
         labelSuffix: apiKey.keyPrefix ? ` · ${apiKey.keyPrefix}` : "",
         value,
+        tokenUsage: usage?.tokenUsage,
       });
     }
     return nextRows;
@@ -85,6 +88,25 @@ function buildBreakdownRows(apiKeys: ApiKey[], metric: UsageMetric): BreakdownRo
   }));
 }
 
+function summarizeApiKeysTokenUsage(apiKeys: ApiKey[]) {
+  const summaries = apiKeys.flatMap((key) => key.usageSummary
+    && (key.usageSummary.requestCount > 0 || key.usageSummary.totalTokens > 0)
+    ? [key.usageSummary] : []);
+  const totalTokens = summaries.reduce((sum, usage) => sum + usage.totalTokens, 0);
+  const coverage = summaries.every((usage) => usage.tokenUsage != null)
+    ? summaries.reduce<TokenUsageCoverage>((total, usage) => {
+      const current = usage.tokenUsage!;
+      return {
+        completeRequests: total.completeRequests + current.completeRequests,
+        partialRequests: total.partialRequests + current.partialRequests,
+        missingRequests: total.missingRequests + current.missingRequests,
+        unknownRequests: total.unknownRequests + current.unknownRequests,
+      };
+    }, { completeRequests: 0, partialRequests: 0, missingRequests: 0, unknownRequests: 0 })
+    : undefined;
+  return summarizeTokenUsage(totalTokens, coverage);
+}
+
 function BreakdownPanel({
   title,
   subtitle,
@@ -99,6 +121,8 @@ function BreakdownPanel({
   const { t } = useTranslation();
   const rows = buildBreakdownRows(apiKeys, metric);
   const hasRows = rows.length > 0;
+  const measuredTokens = summarizeApiKeysTokenUsage(apiKeys);
+  const hasRequests = apiKeys.some((key) => (key.usageSummary?.requestCount ?? 0) > 0);
 
   return (
     <div className="rounded-xl border bg-card p-4" data-testid={`api-keys-overview-${metric}-panel`}>
@@ -109,7 +133,12 @@ function BreakdownPanel({
 
       {!hasRows ? (
         <div className="flex h-[12rem] items-center justify-center rounded-lg border border-dashed bg-muted/10 px-4 text-sm text-muted-foreground">
-          {t("apiKeys.overview.noUsage")}
+          {metric === "tokens" && hasRequests ? (
+            <div className="text-center">
+              <p>{measuredTokens.value === "--" ? t("usage.tokens.missing") : t("apiKeys.overview.tokensMeta", { count: measuredTokens.value })}</p>
+              <p className="mt-1 text-xs">{measuredTokens.note}</p>
+            </div>
+          ) : t("apiKeys.overview.noUsage")}
         </div>
       ) : (
         <div
@@ -127,8 +156,8 @@ function BreakdownPanel({
                   {row.label}
                   <span className="text-muted-foreground">{row.labelSuffix}</span>
                 </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {formatMetricValue(metric, row.value)} · {formatSharePercent(row.share)}
+                <span className="shrink-0 tabular-nums text-muted-foreground" title={metric === "tokens" ? summarizeTokenUsage(row.value, row.tokenUsage).note : undefined}>
+                  {metric === "tokens" ? summarizeTokenUsage(row.value, row.tokenUsage).value : formatMetricValue(metric, row.value)} · {formatSharePercent(row.share)}
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -156,7 +185,7 @@ export function ApiKeysOverview({ apiKeys }: ApiKeysOverviewProps) {
   const expiredKeys = apiKeys.filter((apiKey) => isExpired(apiKey)).length;
   const usedKeys = apiKeys.filter((apiKey) => (apiKey.usageSummary?.requestCount ?? 0) > 0).length;
   const totalRequests = apiKeys.reduce((sum, apiKey) => sum + (apiKey.usageSummary?.requestCount ?? 0), 0);
-  const totalTokens = apiKeys.reduce((sum, apiKey) => sum + (apiKey.usageSummary?.totalTokens ?? 0), 0);
+  const measuredTokens = summarizeApiKeysTokenUsage(apiKeys);
   const totalCostUsd = apiKeys.reduce((sum, apiKey) => sum + (apiKey.usageSummary?.totalCostUsd ?? 0), 0);
   const inactiveKeys = totalKeys - activeKeys;
   const idleKeys = totalKeys - usedKeys;
@@ -175,7 +204,7 @@ export function ApiKeysOverview({ apiKeys }: ApiKeysOverviewProps) {
         <OverviewStat
           label={t("apiKeys.overview.lifetimeRequests")}
           value={formatCompactNumber(totalRequests)}
-          meta={t("apiKeys.overview.tokensMeta", { count: formatCompactNumber(totalTokens) })}
+          meta={`${t("apiKeys.overview.tokensMeta", { count: measuredTokens.value })} · ${measuredTokens.note}`}
         />
         <OverviewStat label={t("apiKeys.overview.lifetimeCost")} value={formatCurrency(totalCostUsd)} meta={t("apiKeys.overview.lifetimeCostMeta")} />
       </div>

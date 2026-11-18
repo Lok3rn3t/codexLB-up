@@ -71,6 +71,7 @@ from app.modules.proxy.account_cache import (
     propagate_account_routing_change,
 )
 from app.modules.rate_limit_reset_credits.store import get_rate_limit_reset_credits_store
+from app.modules.shared.schemas import TokenUsageCoverage
 from app.modules.usage.additional_quota_keys import (
     get_additional_display_label_for_quota_key,
     get_additional_quota_routing_policy,
@@ -170,6 +171,7 @@ class AccountsService:
                 total_tokens=row.total_tokens,
                 cached_input_tokens=row.cached_input_tokens,
                 total_cost_usd=row.total_cost_usd,
+                token_usage=TokenUsageCoverage.model_validate(row.token_usage, from_attributes=True),
             )
             for account_id, row in request_usage_rows.items()
         }

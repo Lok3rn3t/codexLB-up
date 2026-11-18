@@ -9,6 +9,7 @@ from app.core.usage.logs import (
     cost_breakdown_from_log,
     output_tokens_from_log,
     total_tokens_from_log,
+    usage_completeness_from_log,
 )
 from app.db.models import RequestLog
 from app.modules.request_logs.schemas import RequestLogCostBreakdown, RequestLogEntry
@@ -84,6 +85,7 @@ def to_request_log_entry(
         upstream_error_code=log.upstream_error_code,
         bridge_stage=log.bridge_stage,
         tokens=total_tokens_from_log(log_like),
+        usage_completeness=usage_completeness_from_log(log_like),
         input_tokens=log.input_tokens,
         output_tokens=output_tokens_from_log(log_like),
         output_tokens_raw=log.output_tokens,

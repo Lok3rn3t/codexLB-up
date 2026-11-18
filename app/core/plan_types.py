@@ -56,7 +56,9 @@ def canonicalize_account_plan_type(value: str | None) -> str | None:
         return None
     normalized = normalize_account_plan_type(cleaned)
     if normalized is not None:
-        return normalized
+        # Policy aliases can share capacity and model access without being
+        # the same subscription. Persist the upstream identifier for display.
+        return cleaned.lower()
     return cleaned
 
 

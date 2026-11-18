@@ -6,7 +6,7 @@ from typing import List, Literal
 from pydantic import Field
 
 from app.modules.accounts.schemas import AccountSummary
-from app.modules.shared.schemas import DashboardModel
+from app.modules.shared.schemas import DashboardModel, TokenUsageCoverage
 from app.modules.usage.schemas import MetricsTrends, UsageWindow, UsageWindowResponse
 
 DashboardOverviewTimeframeKey = Literal["1d", "7d", "30d"]
@@ -34,12 +34,14 @@ class DashboardUsageMetrics(DashboardModel):
     error_count: int | None = Field(default=None, alias="errorCount")
     cancelled_count: int | None = Field(default=None, alias="cancelledCount")
     top_error: str | None = None
+    token_usage: TokenUsageCoverage = Field(default_factory=TokenUsageCoverage)
 
 
 class DashboardMetricsComparisonPrevious(DashboardModel):
     requests: int
     tokens: int
     cost_usd: float = Field(alias="costUsd")
+    token_usage: TokenUsageCoverage = Field(default_factory=TokenUsageCoverage)
 
 
 class DashboardMetricsComparison(DashboardModel):

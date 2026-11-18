@@ -93,7 +93,8 @@ describe("ApiDetail", () => {
 			}),
 		});
 
-		expect(screen.getByText(/280K tok/)).toBeInTheDocument();
+  expect(screen.getByText(/≥ 280,000 tok/)).toBeInTheDocument();
+  expect(screen.getByText("Coverage unknown")).toBeInTheDocument();
 		expect(screen.getByText(/45K cached/)).toBeInTheDocument();
 		expect(screen.getByText(/350 req/)).toBeInTheDocument();
 		expect(screen.getByText(/\$2.47/)).toBeInTheDocument();

@@ -19,6 +19,7 @@ import { formatCompactAccountId } from "@/utils/account-identifiers";
 import {
   formatDateTimeInline,
   formatPercentNullable,
+  formatPlanLabel,
   formatQuotaResetLabel,
   formatSlug,
 } from "@/utils/formatters";
@@ -50,7 +51,7 @@ export function AccountListItem({
     : null;
   const workspaceLabel = account.chatgptAccountId || account.workspaceLabel || account.workspaceId || t("accounts.detail.unknownWorkspace");
   const seatLabel = account.seatType ? ` | ${formatSlug(account.seatType)}` : "";
-  const slotSubtitle = `${formatSlug(account.planType)} | ${workspaceLabel}${seatLabel}`;
+  const slotSubtitle = `${formatPlanLabel(account.planType)} | ${workspaceLabel}${seatLabel}`;
   const idSuffix = showAccountId ? ` | ID ${formatCompactAccountId(account.accountId)}` : "";
   const primaryState = useSmoothPercent(account.usage?.primaryRemainingPercent ?? null);
   const secondaryState = useSmoothPercent(account.usage?.secondaryRemainingPercent ?? null);

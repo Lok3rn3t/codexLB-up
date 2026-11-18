@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from app.modules.shared.schemas import DashboardModel
+from app.modules.shared.schemas import DashboardModel, TokenUsageCoverage
 
 
 class LimitRuleCreate(DashboardModel):
@@ -73,6 +73,7 @@ class ApiKeyUsageSummaryResponse(DashboardModel):
     total_tokens: int
     cached_input_tokens: int
     total_cost_usd: float
+    token_usage: TokenUsageCoverage = Field(default_factory=TokenUsageCoverage)
 
 
 class ApiKeyResponse(DashboardModel):

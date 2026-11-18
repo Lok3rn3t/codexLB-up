@@ -33,6 +33,15 @@ describe("AccountUsagePanel", () => {
     expect(screen.getByText("--")).toBeInTheDocument();
   });
 
+  it("marks account token totals as partial when some recorded requests lack usage", () => {
+    render(<AccountUsagePanel account={createAccountSummary({ requestUsage: {
+      requestCount: 2, totalTokens: 130, cachedInputTokens: 40, totalCostUsd: 0,
+      tokenUsage: { completeRequests: 0, partialRequests: 1, missingRequests: 1, unknownRequests: 0 },
+    } })} trends={null} />);
+    expect(screen.getByText(/≥ 130 tok/)).toBeInTheDocument();
+    expect(screen.getByText("0 complete · 1 partial · 1 missing · 0 unknown")).toBeInTheDocument();
+  });
+
   it("hides 5h row for weekly-only accounts", () => {
     const account = createAccountSummary({
       planType: "free",
@@ -112,7 +121,8 @@ describe("AccountUsagePanel", () => {
 
     expect(screen.getByText("Request logs total")).toBeInTheDocument();
     expect(screen.getByText(/\$0\.13/)).toBeInTheDocument();
-    expect(screen.getByText(/51\.48K tok/)).toBeInTheDocument();
+    expect(screen.getByText(/≥ 51,480 tok/)).toBeInTheDocument();
+    expect(screen.getByText("Coverage unknown")).toBeInTheDocument();
   });
 
   it("renders usage reset credit availability when provided", () => {

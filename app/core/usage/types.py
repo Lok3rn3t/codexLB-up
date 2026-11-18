@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -136,6 +136,15 @@ class BucketConversationAggregate:
 
 
 @dataclass(frozen=True)
+class TokenUsageCoverage:
+    complete_requests: int = 0
+    partial_requests: int = 0
+    missing_requests: int = 0
+    # Existing rollups retain token sums but not per-request nullability.
+    unknown_requests: int = 0
+
+
+@dataclass(frozen=True)
 class RequestActivityAggregate:
     request_count: int
     error_count: int
@@ -146,6 +155,7 @@ class RequestActivityAggregate:
     cancelled_count: int = 0
     conversation_count: int = 0
     conversation_request_count: int = 0
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 @dataclass(frozen=True)

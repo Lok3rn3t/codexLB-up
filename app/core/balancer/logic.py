@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Collection, Iterable, Literal
 
 from app.core.balancer.types import FailureClass, UpstreamError
+from app.core.plan_types import normalize_account_plan_type
 from app.core.usage import PLAN_CAPACITY_CREDITS_SECONDARY
 from app.core.utils.retry import backoff_seconds, parse_retry_after
 from app.db.models import AccountStatus
@@ -447,7 +448,7 @@ def _prefer_earlier_reset_candidates(
 
 
 def _fallback_secondary_capacity_credits(plan_type: str | None) -> float:
-    normalized = (plan_type or "").strip().lower()
+    normalized = normalize_account_plan_type(plan_type) or (plan_type or "").strip().lower()
     resolved_plan = CAPACITY_PLAN_ALIASES.get(normalized, normalized or UNKNOWN_PLAN_FALLBACK)
     return PLAN_CAPACITY_CREDITS_SECONDARY.get(
         resolved_plan,

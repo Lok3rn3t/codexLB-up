@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TokenUsageCoverageSchema } from "@/utils/token-usage";
 
 const UsageTrendPointSchema = z.object({
   t: z.iso.datetime({ offset: true }),
@@ -12,6 +13,7 @@ const AccountUsageSchema = z.object({
 });
 
 const AccountRequestUsageSchema = z.object({
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   requestCount: z.number().int().nonnegative(),
   totalTokens: z.number().int().nonnegative(),
   cachedInputTokens: z.number().int().nonnegative(),

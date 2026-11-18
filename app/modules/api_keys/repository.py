@@ -11,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only, raiseload, selectinload
 
+from app.core.usage.types import TokenUsageCoverage
 from app.core.utils.time import utcnow
 from app.db.models import (
     Account,
@@ -36,6 +37,7 @@ from app.modules.accounts.usage_rollup import api_key_usage_aggregate_stmt, read
 from app.modules.accounts.usage_time_rollup import HOURLY_BUCKET_SECONDS, WARMUP_REQUEST_KINDS, to_dimension
 from app.modules.accounts.usage_time_rollup_read import RawWindow, raw_windows_clause, read_hourly_window
 from app.modules.api_keys.limit_windows import advance_limit_reset
+from app.modules.shared.usage import token_usage_coverage_columns
 
 
 class ApiKeyOwnerDisabledError(ValueError):
@@ -75,6 +77,7 @@ class ApiKeyUsageSummary:
     total_tokens: int
     cached_input_tokens: int
     total_cost_usd: float
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,10 +270,16 @@ class ApiKeysRepository:
                 sums.output_tokens,
                 sums.cached_input_tokens,
                 sums.total_cost_usd,
+                0,
+                0,
+                0,
+                sums.request_count,
             ]
             for key_id, sums in folded.items()
         }
-        tail_stmt = api_key_usage_aggregate_stmt(api_key_ids=api_key_ids, after_exclusive=watermark)
+        tail_stmt = api_key_usage_aggregate_stmt(api_key_ids=api_key_ids, after_exclusive=watermark).add_columns(
+            *token_usage_coverage_columns()
+        )
         result = await self._session.execute(tail_stmt)
         for (
             api_key_id,
@@ -279,18 +288,25 @@ class ApiKeysRepository:
             output_tokens,
             cached_input_tokens,
             total_cost_usd,
+            complete_requests,
+            partial_requests,
+            missing_requests,
         ) in result.all():
             if not api_key_id:
                 continue
-            totals = merged.setdefault(api_key_id, [0, 0, 0, 0, 0.0])
+            totals = merged.setdefault(api_key_id, [0, 0, 0, 0, 0.0, 0, 0, 0, 0])
             totals[0] += int(request_count or 0)
             totals[1] += int(input_tokens or 0)
             totals[2] += int(output_tokens or 0)
             totals[3] += int(cached_input_tokens or 0)
             totals[4] += float(total_cost_usd or 0.0)
+            totals[5] += int(complete_requests)
+            totals[6] += int(partial_requests)
+            totals[7] += int(missing_requests)
 
         summaries: dict[str, ApiKeyUsageSummary] = {}
-        for api_key_id, (request_count, input_sum, output_sum, cached_sum, total_cost_usd) in merged.items():
+        for api_key_id, totals in merged.items():
+            request_count, input_sum, output_sum, cached_sum, total_cost_usd = totals[:5]
             input_total = int(input_sum)
             output_total = int(output_sum)
             cached_total = max(0, min(int(cached_sum), input_total))
@@ -299,6 +315,12 @@ class ApiKeysRepository:
                 total_tokens=input_total + output_total,
                 cached_input_tokens=cached_total,
                 total_cost_usd=round(float(total_cost_usd), 6),
+                token_usage=TokenUsageCoverage(
+                    complete_requests=int(totals[5]),
+                    partial_requests=int(totals[6]),
+                    missing_requests=int(totals[7]),
+                    unknown_requests=int(totals[8]),
+                ),
             )
         return summaries
 

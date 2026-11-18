@@ -19,6 +19,7 @@ import {
   formatNumber,
   formatPercent,
   formatPercentNullable,
+  formatPlanLabel,
   formatQuotaResetLabel,
   formatRate,
   formatResetRelative,
@@ -42,6 +43,42 @@ describe("formatters", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it.each([
+    ["free", "Free", "Free"],
+    ["go", "Go", "Go"],
+    ["plus", "Plus", "Plus"],
+    ["pro", "Pro 200", "Pro 200"],
+    ["prolite", "Pro 100", "Pro 100"],
+    ["promax", "Pro 500", "Pro 500"],
+    ["team", "Business", "Business"],
+    ["self_serve_business_usage_based", "Business", "Business"],
+    ["business", "Enterprise", "Business"],
+    ["self_serve_business_prolite", "Business Premium", "Business"],
+    ["enterprise_cbp_automation", "Enterprise (Automation)", "Enterprise"],
+    ["enterprise", "Enterprise", "Enterprise"],
+    ["hc", "Enterprise", "Enterprise"],
+    ["ent26", "Enterprise", "Enterprise"],
+    ["enterprise_cbp_usage_based", "Enterprise", "Enterprise"],
+    ["edu", "Edu", "Education"],
+    ["education", "Edu", "Education"],
+    ["edu_plus", "Edu Plus", "Education"],
+    ["edu_pro", "Edu Pro", "Education"],
+    ["sci", "Academic Researchers", "Academic Researchers"],
+    ["sci_plus", "Academic Researchers Plus", "Academic Researchers Plus"],
+    ["unknown", "Unknown", "Account"],
+    ["future_plan", "Unknown", "Account"],
+    ["", "Unknown", "Account"],
+  ])("formats the official %s subscription labels", (plan, status, analytics) => {
+    expect(formatPlanLabel(plan)).toBe(status);
+    expect(formatPlanLabel(plan, "status")).toBe(status);
+    expect(formatPlanLabel(plan, "analytics")).toBe(analytics);
+  });
+
+  it("normalizes subscription spelling without confusing business and personal plans", () => {
+    expect(formatPlanLabel(" SELF_SERVE_BUSINESS_PROLITE ")).toBe("Business Premium");
+    expect(formatPlanLabel(" ProLite ")).toBe("Pro 100");
   });
 
   it("parses numbers safely", () => {

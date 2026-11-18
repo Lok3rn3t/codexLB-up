@@ -1423,6 +1423,12 @@ async def test_dashboard_overview_includes_previous_window_summary_when_history_
             "requests": 1,
             "tokens": 300,
             "costUsd": pytest.approx(0.00125),
+            "tokenUsage": {
+                "completeRequests": 1,
+                "partialRequests": 0,
+                "missingRequests": 0,
+                "unknownRequests": 0,
+            },
         },
     }
 
@@ -1544,5 +1550,11 @@ async def test_dashboard_overview_exposes_zero_previous_window_totals_when_full_
             "requests": 0,
             "tokens": 0,
             "costUsd": 0.0,
+            "tokenUsage": {
+                "completeRequests": 0,
+                "partialRequests": 0,
+                "missingRequests": 0,
+                "unknownRequests": 0,
+            },
         },
     }

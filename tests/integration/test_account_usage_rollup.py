@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
 from sqlalchemy import select
 
 from app.core.crypto import TokenEncryptor
+from app.core.usage.types import TokenUsageCoverage
 from app.core.utils.time import utcnow
 from app.db.models import Account, AccountStatus, AccountUsageRollup, AccountUsageRollupState
 from app.db.session import SessionLocal
@@ -68,6 +70,15 @@ async def _summaries(account_ids: list[str] | None = None):
         return await AccountsRepository(session).list_request_usage_summary_by_account(account_ids)
 
 
+def _assert_summary_totals_equal(actual, expected):
+    assert actual.keys() == expected.keys()
+    for account_id, row in actual.items():
+        assert sum(row.token_usage.__dict__.values()) == row.request_count
+        assert replace(row, token_usage=TokenUsageCoverage()) == replace(
+            expected[account_id], token_usage=TokenUsageCoverage()
+        )
+
+
 async def _rollup_rows():
     async with SessionLocal() as session:
         return (await session.execute(select(AccountUsageRollup))).scalars().all()
@@ -122,7 +133,8 @@ async def test_fold_preserves_summary_totals_and_dedupe(db_setup):
     assert await _watermark() <= now - FOLD_LAG
 
     after = await _summaries()
-    assert after == before
+    _assert_summary_totals_equal(after, before)
+    assert after["acc_fold"].token_usage == TokenUsageCoverage(complete_requests=1, unknown_requests=2)
 
 
 @pytest.mark.asyncio
@@ -360,7 +372,15 @@ async def test_accounts_api_request_usage_unchanged_by_folding(async_client, db_
     await run_fold_pass(now=now)
     assert len(await _rollup_rows()) == 1
 
-    assert await _api_request_usage() == before
+    after = await _api_request_usage()
+    assert after.pop("tokenUsage") == {
+        "completeRequests": 1,
+        "partialRequests": 0,
+        "missingRequests": 0,
+        "unknownRequests": 2,
+    }
+    assert before.pop("tokenUsage")["completeRequests"] == 3
+    assert after == before
 
 
 @pytest.mark.asyncio
@@ -479,7 +499,7 @@ async def test_fold_absorbs_widened_watermark_gap(db_setup):
     assert len(rows) == 1
     assert rows[0].request_count == 2  # old + mid folded, young stays live
 
-    assert await _summaries() == before
+    _assert_summary_totals_equal(await _summaries(), before)
 
 
 @pytest.mark.asyncio

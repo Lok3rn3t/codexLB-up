@@ -94,6 +94,7 @@ def build_dashboard_overview_summary(
             {
                 "requests": activity_metrics.requests,
                 "tokens": activity_metrics.tokens,
+                "token_usage": activity_metrics.token_usage.__dict__,
                 "cached_input_tokens": activity_metrics.cached_input_tokens,
                 "error_rate": activity_metrics.error_rate,
                 "error_count": activity_metrics.error_count,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol
 
 from app.core.usage.pricing import (
     UsageCostBreakdown,
@@ -22,6 +22,8 @@ NON_ERROR_STATUSES: tuple[str, ...] = (SUCCESS_STATUS, CANCELLED_STATUS)
 # error-satellite rollup rows that were folded under the legacy
 # `status != 'success'` filter.
 CLIENT_DISCONNECT_ERROR_CODE = "client_disconnected"
+
+UsageCompleteness = Literal["complete", "partial", "missing"]
 
 
 class RequestLogLike(Protocol):
@@ -210,3 +212,12 @@ def total_tokens_from_log(log: RequestLogLike) -> int | None:
     if input_tokens is None and output_tokens is None:
         return None
     return (input_tokens or 0) + (output_tokens or 0)
+
+
+def usage_completeness_from_log(log: RequestLogLike) -> UsageCompleteness:
+    """Coverage of the total, not cache/reasoning details or unseen activity."""
+    if log.input_tokens is not None and log.output_tokens is not None:
+        return "complete"
+    if log.input_tokens is not None or output_tokens_from_log(log) is not None:
+        return "partial"
+    return "missing"

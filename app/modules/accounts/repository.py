@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import extract_id_token_claims, resolve_seat_identity
 from app.core.crypto import TokenEncryptor
 from app.core.upstream_proxy.cache import get_upstream_route_cache
+from app.core.usage.types import TokenUsageCoverage
 from app.core.utils.time import utcnow
 from app.db.account_identity_lock import advisory_lock_key, lock_postgresql_account_identities
 from app.db.models import (
@@ -48,6 +49,7 @@ from app.modules.accounts.usage_time_rollup import (
     mirror_account_hard_delete_into_time_rollups,
     mirror_account_soft_delete_into_time_rollups,
 )
+from app.modules.shared.usage import token_usage_coverage_columns
 from app.modules.usage.additional_quota_keys import normalize_additional_quota_routing_policy_overrides
 from app.modules.usage.plan_downgrade_observations import discard_plan_downgrade_observations
 from app.modules.usage.repository import _clear_bulk_history_since_sqlite_cache
@@ -121,6 +123,7 @@ class AccountRequestUsageSummary:
     total_tokens: int
     cached_input_tokens: int
     total_cost_usd: float
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 # The account-listing request-usage summary dedupes and re-aggregates the
@@ -262,10 +265,16 @@ class AccountsRepository:
                 sums.output_tokens,
                 sums.cached_input_tokens,
                 sums.total_cost_usd,
+                0,
+                0,
+                0,
+                sums.request_count,
             ]
             for account_id, sums in folded.items()
         }
-        tail_stmt = deduped_usage_aggregate_stmt(account_ids=account_ids, after_exclusive=watermark)
+        tail_stmt = deduped_usage_aggregate_stmt(account_ids=account_ids, after_exclusive=watermark).add_columns(
+            *token_usage_coverage_columns()
+        )
         result = await self._session.execute(tail_stmt)
         for (
             account_id,
@@ -274,18 +283,25 @@ class AccountsRepository:
             output_tokens,
             cached_input_tokens,
             total_cost_usd,
+            complete_requests,
+            partial_requests,
+            missing_requests,
         ) in result.all():
             if not account_id:
                 continue
-            totals = merged.setdefault(account_id, [0, 0, 0, 0, 0.0])
+            totals = merged.setdefault(account_id, [0, 0, 0, 0, 0.0, 0, 0, 0, 0])
             totals[0] += int(request_count or 0)
             totals[1] += int(input_tokens or 0)
             totals[2] += int(output_tokens or 0)
             totals[3] += int(cached_input_tokens or 0)
             totals[4] += float(total_cost_usd or 0.0)
+            totals[5] += int(complete_requests)
+            totals[6] += int(partial_requests)
+            totals[7] += int(missing_requests)
 
         summaries: dict[str, AccountRequestUsageSummary] = {}
-        for account_id, (request_count, input_sum, output_sum, cached_sum, total_cost_usd) in merged.items():
+        for account_id, totals in merged.items():
+            request_count, input_sum, output_sum, cached_sum, total_cost_usd = totals[:5]
             input_total = int(input_sum)
             output_total = int(output_sum)
             cached_total = max(0, min(int(cached_sum), input_total))
@@ -294,6 +310,12 @@ class AccountsRepository:
                 total_tokens=input_total + output_total,
                 cached_input_tokens=cached_total,
                 total_cost_usd=round(float(total_cost_usd), 6),
+                token_usage=TokenUsageCoverage(
+                    complete_requests=int(totals[5]),
+                    partial_requests=int(totals[6]),
+                    missing_requests=int(totals[7]),
+                    unknown_requests=int(totals[8]),
+                ),
             )
         if ttl_seconds > 0:
             _store_request_usage_summaries(cache_key, summaries, ttl_seconds, generation)

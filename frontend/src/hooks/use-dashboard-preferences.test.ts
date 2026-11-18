@@ -102,6 +102,13 @@ describe("useDashboardPreferencesStore", () => {
     );
   });
 
+  it("migrates the removed synthetic subscription sort to reported quota", async () => {
+    window.localStorage.setItem("codex-lb-dashboard-account-list-sort", JSON.stringify({ key: "subscriptionCredits", direction: "asc" }));
+    const { useDashboardPreferencesStore } = await import("@/hooks/use-dashboard-preferences");
+    useDashboardPreferencesStore.getState().initializePreferences();
+    expect(useDashboardPreferencesStore.getState().accountListSort).toEqual({ key: "quota", direction: "asc" });
+  });
+
   it("ignores invalid stored account list sort", async () => {
     window.localStorage.setItem(
       "codex-lb-dashboard-account-list-sort",

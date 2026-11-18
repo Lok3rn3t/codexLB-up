@@ -32,6 +32,7 @@ from app.modules.api_keys.service import (
     ApiKeyValidationError,
     LimitRuleInput,
 )
+from app.modules.shared.schemas import TokenUsageCoverage
 
 router = APIRouter(
     prefix="/api/api-keys",
@@ -87,6 +88,7 @@ def _to_response(row: ApiKeyData) -> ApiKeyResponse:
                 total_tokens=row.usage_summary.total_tokens,
                 cached_input_tokens=row.usage_summary.cached_input_tokens,
                 total_cost_usd=row.usage_summary.total_cost_usd,
+                token_usage=TokenUsageCoverage.model_validate(row.usage_summary.token_usage, from_attributes=True),
             )
             if row.usage_summary is not None
             else None

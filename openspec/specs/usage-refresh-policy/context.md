@@ -40,11 +40,12 @@ scheduler lives in
 
 ## Recognized paid plans
 
-Upstream Business Pro Lite payloads use `self_serve_business_prolite`. The shared
-plan normalizer maps this value to `prolite`, including usage identity checks,
-metadata writes, capacity lookup, model eligibility, and rate-limit projection.
-For example, a workspace-less paid account refreshed with that payload records
-usage and updates its plan to `prolite` instead of rejecting the plan change.
+Business Premium payloads use `self_serve_business_prolite`. Account metadata
+preserves this identifier so the UI can distinguish it from personal Pro 100
+(`prolite`). Policy normalization still maps it to `prolite` for capacity lookup,
+model eligibility, usage identity comparisons and rate-limit projection. A fresh
+accepted usage response can restore a previously collapsed account identifier;
+existing `prolite` rows are not renamed based on workspace membership or guesses.
 
 Pro Max keeps its `promax` label while sharing Pro model eligibility and the
 existing Pro capacity estimates: 1500 primary and 50400 secondary credits.
