@@ -6,6 +6,9 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from fnmatch import fnmatchcase
+from functools import cache
+from pathlib import Path
+from typing import cast
 
 import anyio
 
@@ -45,6 +48,75 @@ class UpstreamModel:
     source_kind: str = MODEL_SOURCE_KIND_SUBSCRIPTION
     source_id: str | None = None
     raw: dict[str, JsonValue] = field(default_factory=dict, hash=False, compare=False)
+
+
+def _str(data: dict[str, JsonValue], key: str, default: str = "") -> str:
+    v = data.get(key)
+    return v if isinstance(v, str) else default
+
+
+def _int(data: dict[str, JsonValue], key: str, default: int = 0) -> int:
+    v = data.get(key)
+    if isinstance(v, bool):
+        return default
+    return int(v) if isinstance(v, (int, float)) else default
+
+
+def _opt_str(data: dict[str, JsonValue], key: str) -> str | None:
+    v = data.get(key)
+    return v if isinstance(v, str) else None
+
+
+def _list_raw(data: dict[str, JsonValue], key: str) -> list[JsonValue]:
+    v = data.get(key)
+    if isinstance(v, list):
+        return cast(list[JsonValue], v)
+    return []
+
+
+def _parse_reasoning_level(value: JsonValue) -> ReasoningLevel | None:
+    if not isinstance(value, dict):
+        return None
+    effort = value.get("effort")
+    description = value.get("description")
+    if not isinstance(effort, str) or not isinstance(description, str):
+        return None
+    return ReasoningLevel(effort=effort, description=description)
+
+
+def parse_upstream_model(data: dict[str, JsonValue]) -> UpstreamModel:
+    # preserve all upstream catalog fields verbatim
+    raw = dict(data)
+
+    reasoning_levels = tuple(
+        parsed_level
+        for rl in _list_raw(data, "supported_reasoning_levels")
+        if (parsed_level := _parse_reasoning_level(rl)) is not None
+    )
+
+    available_in_plans = frozenset(p for p in _list_raw(data, "available_in_plans") if isinstance(p, str))
+    input_modalities = tuple(m for m in _list_raw(data, "input_modalities") if isinstance(m, str))
+
+    return UpstreamModel(
+        slug=_str(data, "slug"),
+        display_name=_str(data, "display_name"),
+        description=_str(data, "description"),
+        base_instructions=_str(data, "base_instructions"),
+        context_window=_int(data, "context_window"),
+        input_modalities=input_modalities,
+        supported_reasoning_levels=reasoning_levels,
+        default_reasoning_level=_opt_str(data, "default_reasoning_level"),
+        supports_reasoning_summaries=bool(data.get("supports_reasoning_summaries")),
+        support_verbosity=bool(data.get("support_verbosity")),
+        default_verbosity=_opt_str(data, "default_verbosity"),
+        prefer_websockets=bool(data.get("prefer_websockets")),
+        supports_parallel_tool_calls=bool(data.get("supports_parallel_tool_calls")),
+        supported_in_api=bool(data.get("supported_in_api", True)),
+        minimal_client_version=_opt_str(data, "minimal_client_version"),
+        priority=_int(data, "priority"),
+        available_in_plans=available_in_plans,
+        raw=raw,
+    )
 
 
 @dataclass
@@ -508,13 +580,25 @@ def _merge_service_tier_metadata(existing: UpstreamModel, incoming: UpstreamMode
     return replace(incoming, raw=merged_raw)
 
 
+@cache
+def _bundled_release_models() -> tuple[UpstreamModel, ...]:
+    path = Path(__file__).with_name("codex_models_snapshot.json")
+    try:
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+        return tuple(parse_upstream_model(entry) for entry in catalog["models"])
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        logger.warning("Unable to load bundled Codex catalog; using compatibility entries", exc_info=True)
+        return ()
+
+
 class ModelRegistry:
     def __init__(self, *, ttl_seconds: float = 300.0) -> None:
         if ttl_seconds <= 0:
             raise ValueError("ttl_seconds must be positive")
         self._ttl_seconds = ttl_seconds
         self._snapshot: ModelRegistrySnapshot | None = None
-        self._bootstrap_models: dict[str, UpstreamModel] = {m.slug: m for m in _BOOTSTRAP_STATIC_MODELS}
+        # Preserve the metadata contract of older pinned clients for the compatibility entries.
+        self._bootstrap_models = {m.slug: m for m in (*_bundled_release_models(), *_BOOTSTRAP_STATIC_MODELS)}
         self._metadata_models: dict[str, UpstreamModel] | None = None
         self._applied_content_hash: str | None = None
         self._lock = anyio.Lock()

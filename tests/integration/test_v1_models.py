@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -11,7 +12,9 @@ from app.modules.proxy import api as proxy_api
 
 pytestmark = pytest.mark.integration
 
-BOOTSTRAP_MODEL_SLUGS = {
+_CATALOG_PATH = Path(__file__).resolve().parents[2] / "app/core/openai/codex_models_snapshot.json"
+_RELEASE_CATALOG = json.loads(_CATALOG_PATH.read_text())["models"]
+BOOTSTRAP_MODEL_SLUGS = {entry["slug"] for entry in _RELEASE_CATALOG} | {
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -42,6 +45,7 @@ EXPECTED_CORE_MODEL_PLANS = {
 }
 
 EXPECTED_BOOTSTRAP_MINIMAL_CLIENT_VERSIONS = {
+    **{entry["slug"]: entry["minimal_client_version"] for entry in _RELEASE_CATALOG},
     "gpt-5.6-sol": "0.144.0",
     "gpt-5.6-terra": "0.144.0",
     "gpt-5.6-luna": "0.144.0",

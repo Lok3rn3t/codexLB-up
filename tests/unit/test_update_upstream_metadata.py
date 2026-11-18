@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock
 
 import pytest
@@ -32,11 +33,46 @@ async def test_generation_preserves_unchanged_snapshot_and_fails_before_writing_
             "cache_read_input_token_cost": 1e-6,
         }
     }
-    monkeypatch.setattr(script, "fetch", lambda url: primary if url == script.MODELS_DEV_URL else secondary)
+    model = {
+        "slug": "new-model",
+        "display_name": "New model",
+        "visibility": "list",
+        "shell_type": "shell_command",
+        "supported_in_api": True,
+        "context_window": 123456,
+        "available_in_plans": ["plus"],
+        "model_messages": {"instructions_template": "example"},
+    }
+    release_url = "https://raw.githubusercontent.com/openai/codex/rust-v1.2.3/codex-rs/models-manager/models.json"
+    sources = {
+        script.MODELS_DEV_URL: primary,
+        script.LITELLM_URL: secondary,
+        release_url: {
+            "models": [
+                model,
+                {**model, "slug": "hidden", "visibility": "hide"},
+                {**model, "slug": "workspace-only", "allow_only_chatgpt_workspace_executor": True},
+                {**model, "slug": "specialty", "model_specialty": "specialized"},
+            ]
+        },
+    }
+    monkeypatch.setattr(script, "fetch", sources.__getitem__)
     await script.main()
     assert path.read_text() == original
     version_path = tmp_path / "app/core/clients/codex_version_snapshot.py"
     assert 'CODEX_VERSION = "1.2.3"' in version_path.read_text()
+    catalog_path = tmp_path / "app/core/openai/codex_models_snapshot.json"
+    previous_catalog = catalog_path.read_text()
+    assert json.loads(previous_catalog) == {
+        "source": release_url,
+        "models": [{k: v for k, v in model.items() if k != "model_messages"}],
+    }
+    primary["openai"]["models"]["gpt-test"]["cost"]["input"] = 42
+    sources[release_url] = {"models": []}
+    with pytest.raises(ValueError, match="no public models"):
+        await script.main()
+    assert path.read_text() == original
+    assert catalog_path.read_text() == previous_catalog
 
     def fail_secondary(url):
         if url == script.MODELS_DEV_URL:
@@ -59,7 +95,7 @@ def test_fetch_rejects_oversized_response_before_json_parsing(monkeypatch):
     response.read = reader
     monkeypatch.setattr(script, "MAX_CATALOG_BYTES", 32)
     monkeypatch.setattr(script, "urlopen", lambda *args, **kwargs: response)
-    with pytest.raises(ValueError, match="Pricing response too large"):
+    with pytest.raises(ValueError, match="metadata response too large"):
         script.fetch("https://example.com/prices.json")
     reader.assert_called_once_with(33)
 

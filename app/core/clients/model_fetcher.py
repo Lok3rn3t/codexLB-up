@@ -23,7 +23,7 @@ from app.core.clients.native_egress import (
 )
 from app.core.clients.proxy import _codex_response_status, build_codex_user_agent
 from app.core.config.settings import get_settings
-from app.core.openai.model_registry import ReasoningLevel, UpstreamModel
+from app.core.openai.model_registry import UpstreamModel, parse_upstream_model
 from app.core.types import JsonValue
 from app.core.upstream_proxy import ResolvedUpstreamRoute
 from app.core.utils.proxy_env import resolve_http_proxy_from_env
@@ -41,75 +41,6 @@ class ModelFetchError(Exception):
         self.status_code = status_code
         self.message = message
         self.transport_error = transport_error
-
-
-def _str(data: dict[str, JsonValue], key: str, default: str = "") -> str:
-    v = data.get(key)
-    return v if isinstance(v, str) else default
-
-
-def _int(data: dict[str, JsonValue], key: str, default: int = 0) -> int:
-    v = data.get(key)
-    if isinstance(v, bool):
-        return default
-    return int(v) if isinstance(v, (int, float)) else default
-
-
-def _opt_str(data: dict[str, JsonValue], key: str) -> str | None:
-    v = data.get(key)
-    return v if isinstance(v, str) else None
-
-
-def _list_raw(data: dict[str, JsonValue], key: str) -> list[JsonValue]:
-    v = data.get(key)
-    if isinstance(v, list):
-        return cast(list[JsonValue], v)
-    return []
-
-
-def _parse_reasoning_level(value: JsonValue) -> ReasoningLevel | None:
-    if not isinstance(value, dict):
-        return None
-    effort = value.get("effort")
-    description = value.get("description")
-    if not isinstance(effort, str) or not isinstance(description, str):
-        return None
-    return ReasoningLevel(effort=effort, description=description)
-
-
-def _parse_upstream_model(data: dict[str, JsonValue]) -> UpstreamModel:
-    # preserve all upstream catalog fields verbatim
-    raw = dict(data)
-
-    reasoning_levels = tuple(
-        parsed_level
-        for rl in _list_raw(data, "supported_reasoning_levels")
-        if (parsed_level := _parse_reasoning_level(rl)) is not None
-    )
-
-    available_in_plans = frozenset(p for p in _list_raw(data, "available_in_plans") if isinstance(p, str))
-    input_modalities = tuple(m for m in _list_raw(data, "input_modalities") if isinstance(m, str))
-
-    return UpstreamModel(
-        slug=_str(data, "slug"),
-        display_name=_str(data, "display_name"),
-        description=_str(data, "description"),
-        base_instructions=_str(data, "base_instructions"),
-        context_window=_int(data, "context_window"),
-        input_modalities=input_modalities,
-        supported_reasoning_levels=reasoning_levels,
-        default_reasoning_level=_opt_str(data, "default_reasoning_level"),
-        supports_reasoning_summaries=bool(data.get("supports_reasoning_summaries")),
-        support_verbosity=bool(data.get("support_verbosity")),
-        default_verbosity=_opt_str(data, "default_verbosity"),
-        prefer_websockets=bool(data.get("prefer_websockets")),
-        supports_parallel_tool_calls=bool(data.get("supports_parallel_tool_calls")),
-        supported_in_api=bool(data.get("supported_in_api", True)),
-        minimal_client_version=_opt_str(data, "minimal_client_version"),
-        priority=_int(data, "priority"),
-        available_in_plans=available_in_plans,
-        raw=raw,
-    )
 
 
 def _build_model_discovery_headers(
@@ -231,7 +162,7 @@ async def fetch_models_for_plan(
         if not isinstance(slug, str) or not slug:
             continue
         try:
-            result.append(_parse_upstream_model(entry_data))
+            result.append(parse_upstream_model(entry_data))
         except Exception:
             logger.warning("Failed to parse upstream model entry slug=%s", slug, exc_info=True)
             continue
