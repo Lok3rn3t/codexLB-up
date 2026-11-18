@@ -2,7 +2,9 @@
 
 ## Purpose
 Governs the model catalogs codex-lb serves to Codex-native and OpenAI-compatible clients, and how those catalogs feed routing. Fresh instances need a usable bootstrap catalog before the first upstream refresh, refreshed upstream data must then stay authoritative and replica-coherent, and catalog metadata (context windows, speed tiers, reasoning efforts, model-source identity) must be preserved exactly so clients can parse it. It also fixes how per-account catalog knowledge constrains or degrades pooled routing without falsely excluding accounts.
+
 ## Requirements
+
 ### Requirement: Bootstrap model catalog is available before refresh
 
 Before the first successful upstream model-registry refresh, the system MUST
@@ -1428,3 +1430,13 @@ of client capability metadata and MUST NOT imply support for additional tools.
 - **GIVEN** an eligible source model declares an empty instruction string
 - **WHEN** a client requests its Codex catalog entry
 - **THEN** the entry contains the empty string without substituting bundled instructions
+
+### Requirement: Public Codex release models are available at cold start
+
+The offline model registry SHALL supplement its existing compatibility entries with public, API-supported shell models from the bundled stable Codex release. It SHALL omit hidden and restricted release entries from this supplement. It SHALL preserve the supplied model capabilities, context limits and available plans. An authoritative live account catalog SHALL take precedence. Pricing records alone MUST NOT add a model to discovery.
+
+#### Scenario: A new public model appears in a release
+
+- **WHEN** the bundled Codex release lists a new public model and the proxy has no live or persisted catalog
+- **THEN** both model-list endpoints include it with its release metadata
+- **AND** it disappears from discovery if the subsequent authoritative account catalog omits it
