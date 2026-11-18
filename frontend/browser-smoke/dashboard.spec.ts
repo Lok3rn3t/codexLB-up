@@ -208,10 +208,8 @@ test("dashboard usage donuts stay within supported viewports", async ({ page }) 
   await page.setViewportSize(viewportCases[0].size);
   await page.goto("/dashboard", { waitUntil: "networkidle" });
 
-  // Match only the two usage donut headings ("5-Hour Credits" / "Weekly
-  // Credits"); the weekly runway card also carries a "Weekly credits pace"
-  // h3 now that a null backend pace falls back to the local projection.
-  const usageHeadings = page.getByRole("heading", { level: 3 }).filter({ hasText: /Credits$/ });
+  // Match the measured quota donuts, excluding the estimated weekly pace card.
+  const usageHeadings = page.getByRole("heading", { level: 3 }).filter({ hasText: /^(5-hour quota|Weekly quota)$/ });
   await expect(usageHeadings).toHaveCount(2);
   const requestTable = page.getByRole("table").first();
   await expect(requestTable).toBeVisible();

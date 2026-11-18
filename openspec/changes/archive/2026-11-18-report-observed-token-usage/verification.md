@@ -57,3 +57,10 @@ API validation independent of browser formatting. Discovery now lists all eight
 existing browser smoke tests; 92 affected formatter/schema/overview tests,
 TypeScript checking and scoped ESLint passed. Full hosted acceptance remains a
 release gate for the final commit.
+
+The full frontend CI run then found three old integration expectations for
+credit donut headings and compact totals on legacy fixtures without coverage.
+Updated the integration checks to assert reported percentage averages, exact
+lower bounds and unknown coverage, and aligned the existing browser viewport
+test with the quota headings. All 16 tests in the three affected integration
+suites passed locally.

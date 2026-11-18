@@ -201,7 +201,8 @@ describe("apis page integration", () => {
 		expect(await screen.findByRole("heading", { name: "Custom analytics key" })).toBeInTheDocument();
 		expect(screen.getByText("All models")).toBeInTheDocument();
 		const apiKeyInfo = screen.getByTestId("api-key-info");
-		expect(await within(apiKeyInfo).findByText(/12K tok/)).toBeInTheDocument();
+		expect(await within(apiKeyInfo).findByText(/≥ 12,000 tok/)).toBeInTheDocument();
+		expect(within(apiKeyInfo).getByText(/Coverage unknown/)).toBeInTheDocument();
 		expect(await within(apiKeyInfo).findByText(/3K cached/)).toBeInTheDocument();
 		expect(await within(apiKeyInfo).findByText(/42 req/)).toBeInTheDocument();
 		expect(await within(apiKeyInfo).findByText(/\$0.42/)).toBeInTheDocument();
