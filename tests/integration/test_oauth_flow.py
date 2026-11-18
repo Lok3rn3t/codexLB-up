@@ -530,7 +530,8 @@ async def test_device_oauth_flow_heals_deactivated_account_when_import_without_o
 
 
 @pytest.mark.asyncio
-async def test_oauth_persist_tokens_invalidates_routing_caches_after_identity_merge(monkeypatch):
+@pytest.mark.parametrize("plan_type", ["plus", "prolite", "self_serve_business_prolite"])
+async def test_oauth_persist_tokens_invalidates_routing_caches_after_identity_merge(monkeypatch, plan_type):
     repo = AsyncMock()
     service = oauth_module.OauthService(repo)
     account_cache = SimpleNamespace(invalidated=False)
@@ -559,7 +560,7 @@ async def test_oauth_persist_tokens_invalidates_routing_caches_after_identity_me
     payload = {
         "email": "reauth-cache@example.com",
         "chatgpt_account_id": "acc_reauth_cache",
-        "https://api.openai.com/auth": {"chatgpt_plan_type": "plus"},
+        "https://api.openai.com/auth": {"chatgpt_plan_type": plan_type},
     }
 
     await service._persist_tokens(
@@ -572,6 +573,7 @@ async def test_oauth_persist_tokens_invalidates_routing_caches_after_identity_me
 
     repo.upsert.assert_not_awaited()
     repo.upsert_account_slot.assert_awaited_once()
+    assert repo.upsert_account_slot.await_args.args[0].plan_type == plan_type
     assert repo.upsert_account_slot.await_args.kwargs == {
         "preserve_unknown_workspace_duplicates": False,
         "preserve_identity_slots": True,

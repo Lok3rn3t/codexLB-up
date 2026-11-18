@@ -1,3 +1,4 @@
+import { summarizeTokenUsage } from "@/utils/token-usage";
 import { Inbox } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -128,6 +129,7 @@ export function ConversationTable({
             </TableHeader>
             <TableBody>
               {conversations.map((conversation) => {
+                const tokenUsage = summarizeTokenUsage(conversation.totalTokens, conversation.tokenUsage);
                 const time = formatDateTimeLines(conversation.lastRequest, dateDisplayFormat);
                 const accountLabel = conversation.representativeAccount
                   ? (accountLabelMap.get(conversation.representativeAccount) ?? conversation.representativeAccount)
@@ -175,7 +177,8 @@ export function ConversationTable({
                       {formatNumber(conversation.requestCount)}
                     </TableCell>
                     <TableCell className="text-right align-top font-mono text-xs tabular-nums">
-                      <div>{formatCompactNumber(conversation.totalTokens)}</div>
+                      <div title={tokenUsage.note}>{tokenUsage.value}</div>
+                      {!tokenUsage.complete ? <div className="text-[11px] text-muted-foreground">{tokenUsage.note}</div> : null}
                       <div className="mt-1 text-[11px] font-sans text-muted-foreground">
                         {t("dashboard.conversations.cached", {
                           count: formatCachedTokenCount(conversation.cachedInputTokens),

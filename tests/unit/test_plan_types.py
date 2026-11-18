@@ -31,14 +31,19 @@ def test_unknown_plan_blocked_when_not_explicitly_allowed():
 
 
 @pytest.mark.parametrize("value", ["self_serve_business_prolite", " SELF_SERVE_BUSINESS_PROLITE "])
-def test_business_prolite_alias_is_canonical_at_plan_boundaries(value):
+def test_business_prolite_identity_is_distinct_from_its_policy_classification(value):
     assert normalize_account_plan_type(value) == "prolite"
-    assert canonicalize_account_plan_type(value) == "prolite"
-    assert coerce_account_plan_type(value, "free") == "prolite"
+    assert canonicalize_account_plan_type(value) == "self_serve_business_prolite"
+    assert coerce_account_plan_type(value, "free") == "self_serve_business_prolite"
     assert normalize_rate_limit_plan_type(value) == "prolite"
     assert account_plan_matches_allowed(value, frozenset({"pro"})) is True
     assert account_plan_matches_allowed("prolite", frozenset({value})) is True
     assert account_plan_matches_allowed(value, frozenset({"plus"})) is False
+
+
+def test_personal_prolite_identity_is_not_upgraded_to_business():
+    assert canonicalize_account_plan_type(" ProLite ") == "prolite"
+    assert coerce_account_plan_type("prolite", "free") == "prolite"
 
 
 def test_promax_is_recognized_without_losing_its_identifier():

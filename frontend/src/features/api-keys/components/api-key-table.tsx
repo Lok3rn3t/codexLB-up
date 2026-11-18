@@ -1,3 +1,5 @@
+import { summarizeTokenUsage } from "@/utils/token-usage";
+import type { TokenUsageCoverage } from "@/schemas/token-usage";
 import { Ellipsis, KeyRound, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -64,12 +66,14 @@ function formatUsageSummary(
   cachedInputTokens: number,
   totalCostUsd: number,
   t: ReturnType<typeof useTranslation>["t"],
+  coverage?: TokenUsageCoverage,
 ): string {
-  const total = formatCompactNumber(totalTokens);
+  const measured = summarizeTokenUsage(totalTokens, coverage);
+  const total = measured.value;
   const cached = formatCompactNumber(cachedInputTokens);
   const requests = formatCompactNumber(requestCount);
   const cost = formatCurrency(totalCostUsd);
-  return t("apiKeys.table.usageSummary", { total, cached, requests, cost });
+  return `${t("apiKeys.table.usageSummary", { total, cached, requests, cost })} · ${measured.note}`;
 }
 
 function getUsageValue(apiKey: ApiKey, t: ReturnType<typeof useTranslation>["t"]): string {
@@ -83,6 +87,7 @@ function getUsageValue(apiKey: ApiKey, t: ReturnType<typeof useTranslation>["t"]
     apiKey.usageSummary.cachedInputTokens,
     apiKey.usageSummary.totalCostUsd,
     t,
+    apiKey.usageSummary.tokenUsage,
   );
 }
 

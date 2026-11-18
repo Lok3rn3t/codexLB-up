@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from typing import cast as typing_cast
@@ -25,6 +25,7 @@ from app.core.usage.types import (
     BucketConversationAggregate,
     BucketModelAggregate,
     RequestActivityAggregate,
+    TokenUsageCoverage,
     UsageSummaryLogsAggregate,
 )
 from app.core.utils.request_id import ensure_request_id
@@ -58,6 +59,7 @@ from app.modules.accounts.usage_time_rollup_read import (
     read_hourly_window,
     sum_demand_window,
 )
+from app.modules.shared.usage import token_usage_coverage_columns
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +181,7 @@ class ConversationListSummary:
     total_tokens: int
     cached_input_tokens: int | None
     cost_usd: float
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +210,7 @@ class ConversationModelStatRow:
     cached_input_tokens: int | None
     output_tokens: int
     cost_usd: float
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +315,7 @@ class RequestLogsRepository:
                 func.coalesce(func.sum(func.coalesce(RequestLog.input_tokens, 0) + output), 0).label("total_tokens"),
                 func.sum(cached).label("cached_input_tokens"),
                 func.coalesce(func.sum(RequestLog.cost_usd), 0.0).label("cost_usd"),
+                *token_usage_coverage_columns(),
             )
             .where(*summary_conditions)
             .group_by(conversation_id)
@@ -358,6 +363,11 @@ class RequestLogsRepository:
                 total_tokens=int(row.total_tokens),
                 cached_input_tokens=(int(row.cached_input_tokens) if row.cached_input_tokens is not None else None),
                 cost_usd=float(row.cost_usd or 0.0),
+                token_usage=TokenUsageCoverage(
+                    complete_requests=int(row.complete_requests),
+                    partial_requests=int(row.partial_requests),
+                    missing_requests=int(row.missing_requests),
+                ),
             )
             for row in page_rows
         ]
@@ -465,6 +475,7 @@ class RequestLogsRepository:
                     func.sum(cached).label("cached_input_tokens"),
                     func.coalesce(func.sum(output), 0).label("output_tokens"),
                     func.coalesce(func.sum(RequestLog.cost_usd), 0.0).label("cost_usd"),
+                    *token_usage_coverage_columns(),
                 )
                 .where(*conditions)
                 .group_by(RequestLog.model, RequestLog.reasoning_effort)
@@ -493,6 +504,11 @@ class RequestLogsRepository:
                     cached_input_tokens=(int(row.cached_input_tokens) if row.cached_input_tokens is not None else None),
                     output_tokens=int(row.output_tokens),
                     cost_usd=float(row.cost_usd or 0.0),
+                    token_usage=TokenUsageCoverage(
+                        complete_requests=int(row.complete_requests),
+                        partial_requests=int(row.partial_requests),
+                        missing_requests=int(row.missing_requests),
+                    ),
                 )
                 for row in model_rows
             ],
@@ -621,8 +637,8 @@ class RequestLogsRepository:
                         rollup.error_count,
                         rollup.cancelled_count,
                         rollup.input_tokens,
-                        rollup.output_tokens,
-                        rollup.cached_input_tokens,
+                        rollup.output_or_reasoning_tokens,
+                        rollup.cached_input_tokens_clamped,
                         rollup.reasoning_tokens,
                         rollup.cost_usd,
                     ),
@@ -638,8 +654,8 @@ class RequestLogsRepository:
                     func.sum(cast(RequestLog.status.not_in(NON_ERROR_STATUSES), Integer)).label("error_count"),
                     func.sum(cast(RequestLog.status == CANCELLED_STATUS, Integer)).label("cancelled_count"),
                     func.coalesce(func.sum(RequestLog.input_tokens), 0).label("input_tokens"),
-                    func.coalesce(func.sum(RequestLog.output_tokens), 0).label("output_tokens"),
-                    func.coalesce(func.sum(RequestLog.cached_input_tokens), 0).label("cached_input_tokens"),
+                    func.coalesce(func.sum(self._conversation_output_expr()), 0).label("output_tokens"),
+                    func.coalesce(func.sum(self._conversation_cached_expr()), 0).label("cached_input_tokens"),
                     func.coalesce(func.sum(RequestLog.reasoning_tokens), 0).label("reasoning_tokens"),
                     func.coalesce(func.sum(RequestLog.cost_usd), 0.0).label("cost_usd"),
                 )
@@ -745,9 +761,11 @@ class RequestLogsRepository:
             request_count += rollup.request_count
             error_count += rollup.error_count
             input_tokens += rollup.input_tokens
-            output_tokens += rollup.output_tokens
-            cached_input_tokens += rollup.cached_input_tokens
+            output_tokens += rollup.output_or_reasoning_tokens
+            cached_input_tokens += rollup.cached_input_tokens_clamped
             cost_usd += rollup.cost_usd
+        unknown_requests = request_count
+        complete_requests = partial_requests = missing_requests = 0
         if raw_windows:
             totals_stmt = select(
                 func.count().label("request_count"),
@@ -756,9 +774,10 @@ class RequestLogsRepository:
                     0,
                 ).label("error_count"),
                 func.coalesce(func.sum(RequestLog.input_tokens), 0).label("input_tokens"),
-                func.coalesce(func.sum(RequestLog.output_tokens), 0).label("output_tokens"),
-                func.coalesce(func.sum(RequestLog.cached_input_tokens), 0).label("cached_input_tokens"),
+                func.coalesce(func.sum(self._conversation_output_expr()), 0).label("output_tokens"),
+                func.coalesce(func.sum(self._conversation_cached_expr()), 0).label("cached_input_tokens"),
                 func.coalesce(func.sum(RequestLog.cost_usd), 0.0).label("cost_usd"),
+                *token_usage_coverage_columns(),
             ).where(
                 raw_windows_clause(raw_windows),
                 self._exclude_warmup_clause(),
@@ -770,6 +789,9 @@ class RequestLogsRepository:
             output_tokens += int(row.output_tokens)
             cached_input_tokens += int(row.cached_input_tokens)
             cost_usd += float(row.cost_usd or 0.0)
+            complete_requests = int(row.complete_requests)
+            partial_requests = int(row.partial_requests)
+            missing_requests = int(row.missing_requests)
 
         # Distinct conversation counts are not additive across the fold
         # boundary, so they merge the conversation satellite with the raw
@@ -801,6 +823,12 @@ class RequestLogsRepository:
             cancelled_count=await self._cancelled_count(since, until),
             conversation_count=int(conversation_row.conversation_count or 0),
             conversation_request_count=int(conversation_row.conversation_request_count or 0),
+            token_usage=TokenUsageCoverage(
+                complete_requests=complete_requests,
+                partial_requests=partial_requests,
+                missing_requests=missing_requests,
+                unknown_requests=unknown_requests,
+            ),
         )
 
     async def _cancelled_count(self, since: datetime, until: datetime | None) -> int:

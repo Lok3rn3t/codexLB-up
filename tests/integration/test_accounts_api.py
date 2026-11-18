@@ -39,13 +39,14 @@ def _reset_credit_snapshot(credit_id: str) -> RateLimitResetCreditsSnapshot:
 
 
 @pytest.mark.asyncio
-async def test_import_and_list_accounts(async_client):
+@pytest.mark.parametrize("plan_type", ["plus", "prolite", "self_serve_business_prolite"])
+async def test_import_and_list_accounts(async_client, plan_type):
     email = "tester@example.com"
     raw_account_id = "acc_explicit"
     payload = {
         "email": email,
         "chatgpt_account_id": "acc_payload",
-        "https://api.openai.com/auth": {"chatgpt_plan_type": "plus"},
+        "https://api.openai.com/auth": {"chatgpt_plan_type": plan_type},
     }
     auth_json = {
         "tokens": {
@@ -63,12 +64,17 @@ async def test_import_and_list_accounts(async_client):
     data = response.json()
     assert data["accountId"] == expected_account_id
     assert data["email"] == email
-    assert data["planType"] == "plus"
+    assert data["planType"] == plan_type
 
     list_response = await async_client.get("/api/accounts")
     assert list_response.status_code == 200
     accounts = list_response.json()["accounts"]
     account = next(account for account in accounts if account["accountId"] == expected_account_id)
+    assert account["planType"] == plan_type
+    async with SessionLocal() as session:
+        stored_account = await session.get(Account, expected_account_id)
+        assert stored_account is not None
+        assert stored_account.plan_type == plan_type
     assert "usageRefreshedAt" not in account
 
 

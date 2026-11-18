@@ -2105,7 +2105,7 @@ async def test_usage_refresh_skips_workspace_account_when_payload_omits_workspac
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("payload_plan_type", "expected_plan_type"),
-    [("pro", "pro"), ("self_serve_business_prolite", "prolite"), ("promax", "promax")],
+    [("pro", "pro"), ("self_serve_business_prolite", "self_serve_business_prolite"), ("promax", "promax")],
 )
 async def test_usage_refresh_applies_paid_plan_upgrade_without_workspace(
     monkeypatch, payload_plan_type: str, expected_plan_type: str
@@ -2143,6 +2143,55 @@ async def test_usage_refresh_applies_paid_plan_upgrade_without_workspace(
     assert usage_repo.entries != []
     assert account.plan_type == expected_plan_type
     assert account.workspace_id is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stored_plan", "payload_plan", "payload_workspace", "accepted"),
+    [
+        ("prolite", "self_serve_business_prolite", None, True),
+        ("prolite", "self_serve_business_prolite", "ws_business", True),
+        ("prolite", "prolite", None, True),
+        ("self_serve_business_prolite", "self_serve_business_prolite", "ws_other", False),
+        ("prolite", "self_serve_business_prolite", "ws_other", False),
+    ],
+)
+async def test_usage_refresh_preserves_business_plan_identity_in_same_slot(
+    monkeypatch, stored_plan: str, payload_plan: str, payload_workspace: str | None, accepted: bool
+) -> None:
+    async def fetch_usage(**_: Any) -> UsagePayload:
+        return UsagePayload.model_validate(
+            {
+                "plan_type": payload_plan,
+                "workspace_id": payload_workspace,
+                "rate_limit": {
+                    "primary_window": {
+                        "used_percent": 10.0,
+                        "reset_at": 1736208000,
+                        "limit_window_seconds": 5 * 60 * 60,
+                    }
+                },
+            }
+        )
+
+    monkeypatch.setattr(usage_updater_module, "fetch_usage", fetch_usage)
+    usage_repo = StubUsageRepository(return_rows=True)
+    accounts_repo = StubAccountsRepository()
+    updater = UsageUpdater(usage_repo, accounts_repo=accounts_repo)
+    account = _make_account("acc_business_identity", "upstream_user", email="business@example.com")
+    account.workspace_id = "ws_business"
+    account.plan_type = stored_plan
+    accounts_repo.accounts_by_id[account.id] = account
+
+    await updater.refresh_accounts([account], latest_usage={})
+
+    assert bool(usage_repo.entries) is accepted
+    assert account.plan_type == (payload_plan if accepted else stored_plan)
+    assert account.workspace_id == "ws_business"
+    if accepted and stored_plan != payload_plan:
+        assert accounts_repo.metadata_updates[-1]["plan_type"] == payload_plan
+    else:
+        assert accounts_repo.metadata_updates == []
 
 
 @pytest.mark.asyncio
@@ -2257,8 +2306,10 @@ def _free_downgrade_payload_factory(plan_types: list[str]):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stored_plan", ["plus", "self_serve_business_prolite"])
 async def test_usage_refresh_confirms_free_downgrade_without_workspace_on_second_observation(
     monkeypatch,
+    stored_plan: str,
 ) -> None:
     """Regression for #1456: an expired paid subscription on a workspace-less
     account must converge to ``free`` once a second consecutive refresh agrees,
@@ -2274,14 +2325,14 @@ async def test_usage_refresh_confirms_free_downgrade_without_workspace_on_second
     updater = UsageUpdater(usage_repo, accounts_repo=accounts_repo)
     account = _make_account("acc_personal_expired", "upstream_user", email="same@example.com")
     account.workspace_id = None
-    account.plan_type = "plus"
+    account.plan_type = stored_plan
     accounts_repo.accounts_by_id[account.id] = account
 
     await updater.refresh_accounts([account], latest_usage={})
 
     # First observation is recorded but never mutates the stored entitlement.
     assert usage_repo.entries == []
-    assert account.plan_type == "plus"
+    assert account.plan_type == stored_plan
 
     await updater.refresh_accounts([account], latest_usage={})
 

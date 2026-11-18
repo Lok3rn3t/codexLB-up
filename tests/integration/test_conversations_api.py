@@ -226,6 +226,7 @@ async def test_conversation_list_contract_search_and_aggregate(async_client, db_
         "totalTokens",
         "cachedInputTokens",
         "totalCostUsd",
+        "tokenUsage",
     }
     assert entry["conversationId"] == "Conv-A"
     assert entry["requestCount"] == 3
@@ -618,6 +619,7 @@ async def test_conversation_details_exact_rows_elapsed_order_and_404(async_clien
             "cachedInputTokens",
             "totalOutputTokens",
             "totalCostUsd",
+            "tokenUsage",
         }
         for row in body["modelStats"]
     )
@@ -830,6 +832,12 @@ async def test_conversation_details_excludes_warmups_and_soft_deleted_rows(async
             "cachedInputTokens": None,
             "totalOutputTokens": 15,
             "totalCostUsd": pytest.approx(3.0),
+            "tokenUsage": {
+                "completeRequests": 2,
+                "partialRequests": 0,
+                "missingRequests": 0,
+                "unknownRequests": 0,
+            },
         }
     ]
 

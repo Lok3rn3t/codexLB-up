@@ -52,5 +52,6 @@ export function useSmoothPercent(value: number | null): {
     return () => cancelAnimationFrame(frameId);
   }, [reducedMotion, target]);
 
-  return { percent, everKnown: target !== null || percent !== null };
+  // Retain the last value only as an animation starting point, never as a current measurement.
+  return { percent: target === null ? null : percent, everKnown: target !== null || percent !== null };
 }

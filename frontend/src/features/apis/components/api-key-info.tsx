@@ -1,3 +1,4 @@
+import { summarizeTokenUsage } from "@/utils/token-usage";
 import { useTranslation } from "react-i18next";
 
 import type { ApiKey, LimitType } from "@/features/api-keys/schemas";
@@ -55,6 +56,7 @@ export function ApiKeyInfo({
 		? (usageSummary ?? apiKey.usageSummary)
 		: (usageSummary ?? null);
 	const hasUsage = usage && usage.requestCount > 0;
+  const tokenUsage = summarizeTokenUsage(usage?.totalTokens, usage?.tokenUsage);
 
 	return (
 		<div className="space-y-4 rounded-lg border bg-muted/30 p-4" data-testid="api-key-info">
@@ -109,7 +111,8 @@ export function ApiKeyInfo({
 						{hasUsage ? (
 							<span>
 								<span className="font-medium">
-									{t("common.units.tokensShort", { count: formatCompactNumber(usage.totalTokens) })}
+									{t("common.units.tokensShort", { count: tokenUsage.value })}
+                  <span className="block text-xs text-muted-foreground">{tokenUsage.note}</span>
 								</span>
 								<span className="mx-1 text-muted-foreground/40">|</span>
 								<span className="font-medium">

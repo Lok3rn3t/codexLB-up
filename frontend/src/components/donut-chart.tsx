@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart, Sector, type PieSectorShapeProps } from "@/components/lazy-recharts";
 
 import { buildDonutPalette } from "@/utils/colors";
-import { formatCompactNumber, formatNumber } from "@/utils/formatters";
+import { formatCompactNumber, formatNumber, formatPercentNullable } from "@/utils/formatters";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { usePrivacyStore } from "@/hooks/use-privacy";
 import { useThemeStore } from "@/hooks/use-theme";
@@ -36,7 +36,7 @@ export type DonutChartProps = {
    *   fraction. Used by the dashboard usage donuts so operators can read
    *   the absolute credit counts without abbreviation (#371).
    */
-  centerLayout?: "remaining" | "credits";
+  centerLayout?: "remaining" | "credits" | "percent";
 };
 
 function SafeLineTick({
@@ -226,7 +226,14 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
           ) : null}
           <div className="absolute inset-[22px] flex items-center justify-center rounded-full text-center pointer-events-none">
              <div>
-               {centerLayout === "credits" ? (
+               {centerLayout === "percent" ? (
+                 <>
+                   <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("usage.quota.averageRemaining")}</p>
+                   <p className="text-base font-semibold tabular-nums" data-testid="donut-center-average">
+                     {formatPercentNullable(safeCapacity > 0 ? usedSum / safeCapacity * 100 : null, 1)}
+                   </p>
+                 </>
+               ) : centerLayout === "credits" ? (
                  <>
                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("components.donut.credits")}</p>
                    <p
@@ -253,7 +260,7 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
           </div>
           </div>
           <p className="text-[11px] tabular-nums text-muted-foreground" data-testid="donut-caption">
-            {t("components.donut.caption", {
+            {centerLayout === "percent" ? t("usage.quota.knownAccounts", { count: normalizedItems.length }) : t("components.donut.caption", {
               total: formatCompactNumber(safeCapacity),
               used: formatUsedPercent(usedPercent),
             })}
@@ -298,7 +305,7 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
                 </span>
               </div>
               <span className="tabular-nums text-muted-foreground">
-                {formatCompactNumber(item.value)}
+                {centerLayout === "percent" ? formatPercentNullable(item.value, 1) : formatCompactNumber(item.value)}
               </span>
             </button>
             );
@@ -323,10 +330,10 @@ export function DonutChart({ items, total, centerValue, title, subtitle, safeLin
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: consumedColor }}
               />
-              <span className="truncate font-medium">{t("components.donut.used")}</span>
+              <span className="truncate font-medium">{t(centerLayout === "percent" ? "usage.quota.averageUsed" : "components.donut.used")}</span>
             </div>
             <span className="tabular-nums text-muted-foreground" data-testid="donut-used-value">
-              {formatCompactNumber(consumed)}
+              {centerLayout === "percent" ? formatPercentNullable(safeCapacity > 0 ? usedPercent : null, 1) : formatCompactNumber(consumed)}
             </span>
           </button>
         </div>

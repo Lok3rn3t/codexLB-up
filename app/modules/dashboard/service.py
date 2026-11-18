@@ -159,6 +159,7 @@ class DashboardService:
                 requests=previous_metrics.requests or 0,
                 tokens=previous_metrics.tokens or 0,
                 costUsd=previous_cost.total_usd,
+                token_usage=previous_metrics.token_usage.__dict__,
             ),
         )
 

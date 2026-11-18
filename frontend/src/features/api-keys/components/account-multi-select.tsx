@@ -17,7 +17,7 @@ import { useAccounts } from "@/features/accounts/hooks/use-accounts";
 import type { AccountSummary } from "@/features/accounts/schemas";
 import { cn } from "@/lib/utils";
 import { isAccountAssignmentSelectable, normalizeStatus } from "@/utils/account-status";
-import { formatPercentNullable, formatSlug, formatWindowLabel } from "@/utils/formatters";
+import { formatPercentNullable, formatPlanLabel, formatWindowLabel } from "@/utils/formatters";
 
 export type AccountMultiSelectProps = {
   value: string[];
@@ -97,8 +97,8 @@ function AccountOption({ account }: { account: AccountSummary }) {
   const title = account.displayName || account.email;
   const subtitle =
     account.displayName && account.displayName !== account.email
-      ? `${account.email} · ${formatSlug(account.planType)}`
-      : formatSlug(account.planType);
+      ? `${account.email} · ${formatPlanLabel(account.planType)}`
+      : formatPlanLabel(account.planType);
   const limitChips = buildLimitChips(account, t);
 
   return (
@@ -159,12 +159,14 @@ export function AccountMultiSelect({
 
   const filtered = useMemo(() => {
     if (!search.trim()) return selectableAccounts;
-    const query = search.toLowerCase();
+    const query = search.trim().toLowerCase();
     return selectableAccounts.filter(
       (account) =>
         account.accountId.toLowerCase().includes(query) ||
         account.email.toLowerCase().includes(query) ||
-        account.displayName.toLowerCase().includes(query),
+        account.displayName.toLowerCase().includes(query) ||
+        account.planType.toLowerCase().includes(query) ||
+        formatPlanLabel(account.planType).toLowerCase().includes(query),
     );
   }, [search, selectableAccounts]);
 

@@ -1,3 +1,4 @@
+import { summarizeTokenUsage } from "@/utils/token-usage";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -148,12 +149,13 @@ export function ConversationDetailsDialog({
                           <TableCell className="font-mono text-xs tabular-nums">{formatCompactNumber(stat.reqs)}</TableCell>
                           <TableCell className="font-mono text-xs tabular-nums">{formatElapsed(stat.totalElapsedTime)}</TableCell>
                           <TableCell className="font-mono text-xs tabular-nums">
-                            <div>{formatCompactNumber(stat.totalInputTokens)}</div>
+                            <div>{summarizeTokenUsage(stat.totalInputTokens, stat.tokenUsage).value}</div>
+                            <div className="mt-1 text-[11px] text-muted-foreground">{summarizeTokenUsage(stat.totalInputTokens, stat.tokenUsage).note}</div>
                             <div className="mt-1 text-[11px] font-sans text-muted-foreground">
                               ({t("dashboard.conversations.details.cache", { count: formatCachedTokenCount(stat.cachedInputTokens) })})
                             </div>
                           </TableCell>
-                          <TableCell className="font-mono text-xs tabular-nums">{formatCompactNumber(stat.totalOutputTokens)}</TableCell>
+                          <TableCell className="font-mono text-xs tabular-nums">{summarizeTokenUsage(stat.totalOutputTokens, stat.tokenUsage).value}</TableCell>
                           <TableCell className="font-mono text-xs tabular-nums">{formatCurrency(stat.totalCostUsd)}</TableCell>
                         </TableRow>
                       ))}

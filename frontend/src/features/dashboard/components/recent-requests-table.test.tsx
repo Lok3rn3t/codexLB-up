@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAuthStore } from "@/features/auth/hooks/use-auth";
 import { usePrivacyStore } from "@/hooks/use-privacy";
-import { ADMIN_PERMISSIONS, OPERATOR_PERMISSIONS } from "@/test/mocks/factories";
+import { ADMIN_PERMISSIONS, OPERATOR_PERMISSIONS, createAccountSummary } from "@/test/mocks/factories";
 import { RecentRequestsTable } from "@/features/dashboard/components/recent-requests-table";
 import {
   ALL_REQUEST_LOG_COLUMNS,
@@ -79,6 +79,7 @@ const LAYOUT_REQUEST = {
   ...NULL_FAILURE_METADATA,
   ...NULL_USERAGENT_METADATA,
   tokens: 1200,
+  usageCompleteness: "complete",
   inputTokens: 1000,
   outputTokens: 200,
   outputTokensRaw: 200,
@@ -98,6 +99,35 @@ function openRequestDetails() {
 }
 
 describe("RecentRequestsTable", () => {
+  it.each([
+    ["complete", 0, "0", "Complete usage"],
+    ["partial", 130, "≥ 130", "Partial usage"],
+    ["missing", null, "--", "Usage unavailable"],
+  ] as const)("shows %s token measurements without inventing missing counts", (usageCompleteness, tokens, label, state) => {
+    render(<RecentRequestsTable {...PAGINATION_PROPS} accounts={[]} requests={[{
+      ...LAYOUT_REQUEST, usageCompleteness, tokens, cachedInputTokens: null, reasoningTokens: null,
+    }]} />);
+    const row = screen.getByText("gpt-5.1").closest("tr");
+    expect(within(row as HTMLElement).getAllByText(label).length).toBeGreaterThan(0);
+    expect(within(openRequestDetails()).getByText(state)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["self_serve_business_prolite", "Business Premium"],
+    ["prolite", "Pro 100"],
+  ])("uses the %s request subscription snapshot in the row and details", (planType, label) => {
+    render(
+      <RecentRequestsTable
+        {...PAGINATION_PROPS}
+        accounts={[createAccountSummary({ accountId: LAYOUT_REQUEST.accountId, planType: "plus" })]}
+        requests={[{ ...LAYOUT_REQUEST, planType }]}
+      />,
+    );
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(within(openRequestDetails()).getByText(label)).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     toastSuccess.mockReset();
     toastError.mockReset();

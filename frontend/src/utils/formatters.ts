@@ -127,6 +127,52 @@ export function formatSlug(value: string): string {
   return words.join(" ");
 }
 
+// OpenAI Codex ca21fe65, codex-rs/tui/src/subscription.rs.
+// Status retains the subscription detail that analytics groups into plan families.
+export function formatPlanLabel(value: string, display: "status" | "analytics" = "status"): string {
+  switch (value.trim().toLowerCase()) {
+    case "free":
+      return "Free";
+    case "go":
+      return "Go";
+    case "plus":
+      return "Plus";
+    case "pro":
+      return "Pro 200";
+    case "prolite":
+      return "Pro 100";
+    case "promax":
+      return "Pro 500";
+    case "team":
+    case "self_serve_business_usage_based":
+      return "Business";
+    case "business":
+      return display === "status" ? "Enterprise" : "Business";
+    case "self_serve_business_prolite":
+      return display === "status" ? "Business Premium" : "Business";
+    case "enterprise_cbp_automation":
+      return display === "status" ? "Enterprise (Automation)" : "Enterprise";
+    case "enterprise":
+    case "hc":
+    case "ent26":
+    case "enterprise_cbp_usage_based":
+      return "Enterprise";
+    case "edu":
+    case "education":
+      return display === "status" ? "Edu" : "Education";
+    case "edu_plus":
+      return display === "status" ? "Edu Plus" : "Education";
+    case "edu_pro":
+      return display === "status" ? "Edu Pro" : "Education";
+    case "sci":
+      return "Academic Researchers";
+    case "sci_plus":
+      return "Academic Researchers Plus";
+    default:
+      return display === "status" ? "Unknown" : "Account";
+  }
+}
+
 export function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;

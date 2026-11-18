@@ -539,11 +539,9 @@ class _ApiKeyUsageMixin:
             try:
                 async with proxy._repo_factory() as repos:
                     api_keys_service = _service_api_keys_service()(repos.api_keys)
-                    if (
-                        settlement.status == "success"
-                        and settlement.input_tokens is not None
-                        and settlement.output_tokens is not None
-                    ):
+                    # Failed and incomplete responses can still report billed
+                    # usage. Settle that measurement independently of outcome.
+                    if settlement.input_tokens is not None and settlement.output_tokens is not None:
                         await api_keys_service.finalize_usage_reservation(
                             reservation_id,
                             model=model_name,

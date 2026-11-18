@@ -54,6 +54,40 @@ describe("AccountMultiSelect", () => {
     });
   });
 
+  it("finds Business Premium by its subscription label without selecting personal Pro 100", async () => {
+    server.use(
+      http.get("/api/accounts", () =>
+        HttpResponse.json({
+          accounts: [
+            createAccountSummary({
+              accountId: "acc-workspace",
+              email: "workspace@example.com",
+              displayName: "Workspace",
+              planType: "self_serve_business_prolite",
+            }),
+            createAccountSummary({
+              accountId: "acc-personal",
+              email: "personal@example.com",
+              displayName: "Personal",
+              planType: "prolite",
+            }),
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithProviders(<AccountMultiSelect value={[]} onChange={onChange} />);
+    await user.click(await screen.findByRole("button", { name: "All accounts" }));
+    expect(await screen.findByText("workspace@example.com · Business Premium")).toBeInTheDocument();
+    expect(screen.getByText("personal@example.com · Pro 100")).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("Search accounts..."), "Business Premium");
+    expect(screen.queryByRole("menuitemcheckbox", { name: /personal@example\.com/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /workspace@example\.com/i }));
+    expect(onChange).toHaveBeenCalledWith(["acc-workspace"]);
+  });
+
   it("pluralizes the selected account count", async () => {
     renderWithProviders(
       <AccountMultiSelect value={["acc_primary", "acc_secondary"]} onChange={vi.fn()} />,

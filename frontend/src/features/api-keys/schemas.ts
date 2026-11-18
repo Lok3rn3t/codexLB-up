@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TokenUsageCoverageSchema } from "@/schemas/token-usage";
 
 export const LIMIT_TYPES = ["total_tokens", "input_tokens", "output_tokens", "cost_usd", "credits"] as const;
 export const LIMIT_WINDOWS = ["daily", "weekly", "monthly", "5h", "7d"] as const;
@@ -24,6 +25,7 @@ export const LimitRuleCreateSchema = z.object({
 });
 
 const ApiKeyUsageSummarySchema = z.object({
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   requestCount: z.number().int().nonnegative(),
   totalTokens: z.number().int().nonnegative(),
   cachedInputTokens: z.number().int().nonnegative(),

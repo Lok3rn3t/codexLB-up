@@ -13,10 +13,6 @@ const DonutChart = lazy(() =>
 export type UsageDonutsProps = {
 	primaryItems: RemainingItem[];
 	secondaryItems: RemainingItem[];
-	primaryTotal: number;
-	secondaryTotal: number;
-	primaryCenterValue?: number;
-	secondaryCenterValue?: number;
 	safeLinePrimary?: SafeLineView | null;
 	safeLineSecondary?: SafeLineView | null;
 };
@@ -24,10 +20,6 @@ export type UsageDonutsProps = {
 export function UsageDonuts({
 	primaryItems,
 	secondaryItems,
-	primaryTotal,
-	secondaryTotal,
-	primaryCenterValue,
-	secondaryCenterValue,
 	safeLinePrimary,
 	safeLineSecondary,
 }: UsageDonutsProps) {
@@ -61,20 +53,18 @@ export function UsageDonuts({
 		<Suspense fallback={<div className="grid gap-4 lg:grid-cols-2" />}>
 			<div className="grid min-w-0 gap-4 lg:grid-cols-2">
 			<DonutChart
-				title={t("dashboard.usage.fiveHourCredits")}
+				title={t("usage.quota.fiveHour")}
 				items={primaryChartItems}
-				total={primaryTotal}
-				centerValue={primaryCenterValue}
-				safeLine={safeLinePrimary}
-				centerLayout="credits"
+				total={primaryChartItems.length * 100}
+				subtitle={t("usage.quota.averageNote") + (safeLinePrimary ? ` ${t("usage.quota.safeEstimate", { percent: safeLinePrimary.safePercent })}` : "")}
+				centerLayout="percent"
 			/>
 			<DonutChart
-				title={t("dashboard.usage.weeklyCredits")}
+				title={t("usage.quota.weekly")}
 				items={secondaryChartItems}
-				total={secondaryTotal}
-				centerValue={secondaryCenterValue}
-				safeLine={safeLineSecondary}
-				centerLayout="credits"
+				total={secondaryChartItems.length * 100}
+				subtitle={t("usage.quota.averageNote") + (safeLineSecondary ? ` ${t("usage.quota.safeEstimate", { percent: safeLineSecondary.safePercent })}` : "")}
+				centerLayout="percent"
 			/>
 			</div>
 		</Suspense>

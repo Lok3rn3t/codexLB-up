@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from app.core import usage as usage_core
@@ -16,6 +16,7 @@ from app.core.usage.types import (
     BucketConversationAggregate,
     BucketModelAggregate,
     RequestActivityAggregate,
+    TokenUsageCoverage,
     UsageCostByModel,
     UsageCostSummary,
     UsageMetricsSummary,
@@ -60,6 +61,7 @@ class ActivityMetricsSummary:
     top_error: str | None = None
     conversation_count: int = 0
     conversation_request_count: int = 0
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 def align_bucket_window_start(
@@ -210,6 +212,7 @@ def build_activity_summaries(
             top_error=top_error,
             conversation_count=aggregate.conversation_count,
             conversation_request_count=aggregate.conversation_request_count,
+            token_usage=aggregate.token_usage,
         ),
         ActivityCostSummary(
             currency="USD",

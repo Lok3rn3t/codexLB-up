@@ -23,7 +23,7 @@ from app.core.usage.pricing import (
     calculate_cost_from_usage,
     get_pricing_for_model,
 )
-from app.core.usage.types import UsageWindowRow
+from app.core.usage.types import TokenUsageCoverage, UsageWindowRow
 from app.core.utils.time import to_utc_naive, utcnow
 from app.db.models import Account, AccountStatus, ApiKey, ApiKeyLimit, LimitType, LimitWindow, ModelSource, UsageHistory
 from app.db.session import sqlite_writer_section
@@ -372,6 +372,7 @@ class ApiKeyUsageSummaryData:
     total_tokens: int
     cached_input_tokens: int
     total_cost_usd: float
+    token_usage: TokenUsageCoverage = field(default_factory=TokenUsageCoverage)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1941,6 +1942,7 @@ def _to_usage_summary_data(summary: ApiKeyUsageSummary | None) -> ApiKeyUsageSum
         total_tokens=summary.total_tokens,
         cached_input_tokens=summary.cached_input_tokens,
         total_cost_usd=summary.total_cost_usd,
+        token_usage=summary.token_usage,
     )
 
 

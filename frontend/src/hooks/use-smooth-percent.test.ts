@@ -33,14 +33,14 @@ describe("useSmoothPercent", () => {
     callbacks.forEach((callback) => callback(at));
   }
 
-  it("holds the last valid value while a refresh is temporarily unknown", () => {
+  it("does not display the last value when the current measurement is unknown", () => {
     const { result, rerender } = renderHook(
       ({ value }) => useSmoothPercent(value),
       { initialProps: { value: 82 as number | null } },
     );
 
     rerender({ value: null });
-    expect(result.current.percent).toBe(82);
+    expect(result.current.percent).toBeNull();
     expect(result.current.everKnown).toBe(true);
   });
 
@@ -51,7 +51,7 @@ describe("useSmoothPercent", () => {
     );
 
     rerender({ value: Number.NaN });
-    expect(result.current.percent).toBe(64);
+    expect(result.current.percent).toBeNull();
   });
 
   it("applies fresh values without animation when reduced motion is preferred", () => {

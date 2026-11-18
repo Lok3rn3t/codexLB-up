@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TokenUsageCoverageSchema } from "@/schemas/token-usage";
 
 const ApiKeyTrendPointSchema = z.object({
   t: z.iso.datetime({ offset: true }),
@@ -19,6 +20,7 @@ const ApiKeyAccountCostSchema = z.object({
 });
 
 export const ApiKeyUsage7DayResponseSchema = z.object({
+  tokenUsage: TokenUsageCoverageSchema.optional(),
   keyId: z.string(),
   totalTokens: z.number().int(),
   totalCostUsd: z.number(),

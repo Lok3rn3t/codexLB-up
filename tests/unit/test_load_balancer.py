@@ -1190,6 +1190,19 @@ def test_select_account_sequential_drain_uses_lowest_capacity_first_until_exhaus
     assert result.account.account_id == "free"
 
 
+@pytest.mark.parametrize("plan_type", ["prolite", "self_serve_business_prolite"])
+def test_select_account_sequential_drain_preserves_business_prolite_fallback_capacity(plan_type):
+    states = [
+        AccountState("premium", AccountStatus.ACTIVE, used_percent=0.0, plan_type=plan_type),
+        AccountState("plus", AccountStatus.ACTIVE, used_percent=0.0, plan_type="plus"),
+    ]
+
+    result = select_account(states, routing_strategy="sequential_drain")
+
+    assert result.account is not None
+    assert result.account.account_id == "plus"
+
+
 def test_select_account_sequential_drain_keeps_lowest_capacity_active_candidate_when_local_usage_exhausted():
     states = [
         AccountState(

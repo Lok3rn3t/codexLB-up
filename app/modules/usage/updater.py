@@ -1051,9 +1051,15 @@ async def _payload_mismatches_account_slot(account: Account, payload: UsagePaylo
         # workspace identity trustworthy.
         return True
     if not payload_workspace_id and payload.plan_type:
-        payload_plan_type = coerce_account_plan_type(payload.plan_type, account.plan_type or "free")
         normalized_payload_plan_type = normalize_account_plan_type(payload.plan_type)
-        stored_plan_type = coerce_account_plan_type(account.plan_type, "free")
+        # Compare the existing policy classes for slot safety, while metadata
+        # persistence retains the more specific upstream subscription identity.
+        payload_plan_type = normalized_payload_plan_type or coerce_account_plan_type(
+            payload.plan_type, account.plan_type or "free"
+        )
+        stored_plan_type = normalize_account_plan_type(account.plan_type) or coerce_account_plan_type(
+            account.plan_type, "free"
+        )
         recognized_paid_plans = ACCOUNT_PLAN_TYPES - {"free"}
         # A transition from free into a recognized paid plan (e.g. Free -> Plus)
         # or between paid plans (e.g. Plus -> Pro) is a legitimate plan change,

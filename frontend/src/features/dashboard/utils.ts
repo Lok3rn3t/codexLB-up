@@ -9,11 +9,11 @@ import type {
   RequestLog,
   ServerWeeklyCreditPace,
   TrendPoint,
-  UsageWindow,
   WeeklyCreditPaceStatus,
 } from "@/features/dashboard/schemas";
 import { formatCompactAccountId } from "@/utils/account-identifiers";
 import { buildDonutPalette } from "@/utils/colors";
+import { summarizeTokenUsage } from "@/utils/token-usage";
 import {
   formatCachedTokensMeta,
   formatCompactNumber,
@@ -76,9 +76,9 @@ export type DashboardView = {
   stats: DashboardStat[];
   primaryUsageItems: RemainingItem[];
   secondaryUsageItems: RemainingItem[];
-  /** Sum of visible primary remaining items shown in the donut center label. */
+  /** Sum of reported primary percentages, with equal weight per account. */
   primaryTotal: number;
-  /** Sum of visible secondary remaining items shown in the donut center label. */
+  /** Sum of reported secondary percentages, with equal weight per account. */
   secondaryTotal: number;
   requestLogs: RequestLog[];
   safeLinePrimary: SafeLineView | null;
@@ -109,17 +109,6 @@ export function buildDepletionView(depletion: Depletion | null | undefined): Saf
   return { safePercent: depletion.safeUsagePercent, riskLevel: depletion.riskLevel };
 }
 
-function buildWindowIndex(window: UsageWindow | null): Map<string, number> {
-  const index = new Map<string, number>();
-  if (!window) {
-    return index;
-  }
-  for (const entry of window.accounts) {
-    index.set(entry.accountId, entry.remainingCredits);
-  }
-  return index;
-}
-
 function isWeeklyOnlyAccount(account: AccountSummary): boolean {
   return account.windowMinutesPrimary == null && account.windowMinutesSecondary != null;
 }
@@ -139,60 +128,22 @@ function accountRemainingPercent(account: AccountSummary, windowKey: "primary" |
   return account.usage?.primaryRemainingPercent ?? null;
 }
 
-/**
- * Cap primary (5h) remaining by secondary (7d) absolute credits.
- *
- * The 7d window is a hard quota gate — when its remaining credits are lower
- * than the 5h remaining credits, the account can only use up to the 7d amount
- * regardless of 5h headroom.  Comparing absolute credits (not percentages) is
- * essential because the two windows have vastly different capacities
- * (e.g. 225 vs 7 560 for Plus plans).
- */
-export function applySecondaryConstraint(
-  primaryItems: RemainingItem[],
-  secondaryItems: RemainingItem[],
-): RemainingItem[] {
-  const secondaryByAccount = new Map<string, RemainingItem>();
-  for (const item of secondaryItems) {
-    secondaryByAccount.set(item.accountId, item);
-  }
-
-  return primaryItems.map((item) => {
-    const secondaryItem = secondaryByAccount.get(item.accountId);
-    if (!secondaryItem) return item;
-    if (secondaryItem.remainingPercent == null) return item;
-    if (secondaryItem.value >= item.value) return item;
-
-    const effectivePercent =
-      item.remainingPercent != null && item.value > 0
-        ? item.remainingPercent * (secondaryItem.value / item.value)
-        : item.remainingPercent;
-
-    return {
-      ...item,
-      value: Math.max(0, secondaryItem.value),
-      remainingPercent: effectivePercent != null ? Math.max(0, effectivePercent) : null,
-    };
-  });
-}
-
 export function buildRemainingItems(
   accounts: AccountSummary[],
-  window: UsageWindow | null,
   windowKey: "primary" | "secondary",
   isDark = false,
 ): RemainingItem[] {
-  const usageIndex = buildWindowIndex(window);
   const palette = buildDonutPalette(accounts.length, isDark);
   return accounts
-    .map((account, index) => {
+    .map((account, index): RemainingItem | null => {
       if (isMonthlyOnlyAccount(account)) {
         return null;
       }
       if (windowKey === "primary" && isWeeklyOnlyAccount(account)) {
         return null;
       }
-      const remaining = usageIndex.get(account.accountId) ?? 0;
+      const remaining = accountRemainingPercent(account, windowKey);
+      if (remaining === null || !Number.isFinite(remaining)) return null;
       const rawLabel = account.displayName || account.email || account.accountId;
       const labelIsEmail = !!account.email && rawLabel === account.email;
       const labelSuffix = account.isEmailDuplicate === true
@@ -203,8 +154,8 @@ export function buildRemainingItems(
         label: rawLabel,
         labelSuffix,
         isEmail: labelIsEmail,
-        value: remaining,
-        remainingPercent: accountRemainingPercent(account, windowKey),
+        value: clampPercent(remaining),
+        remainingPercent: clampPercent(remaining),
         color: palette[index % palette.length],
       };
     })
@@ -738,9 +689,8 @@ export function buildDashboardView(
   projections?: DashboardProjections,
 ): DashboardView {
   const { isDark, showAccountBurnrate } = resolveDashboardViewOptions(optionsOrIsDark);
-  const primaryWindow = overview.windows.primary;
-  const secondaryWindow = overview.windows.secondary;
   const metrics = overview.summary.metrics;
+  const tokenUsage = summarizeTokenUsage(metrics?.tokens, metrics?.tokenUsage);
   const cost = overview.summary.cost.totalUsd;
   const timeframeLabel = (() => {
     const formatted = formatWindowMinutes(overview.timeframe.windowMinutes);
@@ -781,9 +731,10 @@ export function buildDashboardView(
     },
     {
       label: t("dashboard.stats.tokens", { timeframe: timeframeLabel }),
-      value: formatCompactNumber(metrics?.tokens ?? 0),
-      meta: formatCachedTokensMeta(metrics?.tokens, metrics?.cachedInputTokens),
-      comparison: buildStatComparison(metrics?.tokens, comparison?.previous.tokens ?? 0, canCompare),
+      value: tokenUsage.value,
+      meta: `${formatCachedTokensMeta(metrics?.tokens, metrics?.cachedInputTokens)} · ${tokenUsage.note}`,
+      comparison: buildStatComparison(metrics?.tokens, comparison?.previous.tokens ?? 0,
+        canCompare && tokenUsage.complete && summarizeTokenUsage(comparison?.previous.tokens, comparison?.previous.tokenUsage).complete),
       icon: Coins,
       trend: trendPointsToValues(trends.tokens),
       trendColor: TREND_COLORS[1],
@@ -848,11 +799,8 @@ export function buildDashboardView(
     trendColor: TREND_COLORS[4],
   });
 
-  const rawPrimaryItems = buildRemainingItems(overview.accounts, primaryWindow, "primary", isDark);
-  const secondaryUsageItems = buildRemainingItems(overview.accounts, secondaryWindow, "secondary", isDark);
-  const primaryUsageItems = secondaryWindow
-    ? applySecondaryConstraint(rawPrimaryItems, secondaryUsageItems)
-    : rawPrimaryItems;
+  const primaryUsageItems = buildRemainingItems(overview.accounts, "primary", isDark);
+  const secondaryUsageItems = buildRemainingItems(overview.accounts, "secondary", isDark);
 
   return {
     stats,

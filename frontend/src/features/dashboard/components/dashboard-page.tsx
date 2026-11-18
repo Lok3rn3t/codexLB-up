@@ -76,6 +76,7 @@ export function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const isDark = useThemeStore((s) => s.theme === "dark");
+  const refreshSeconds = useDashboardPreferencesStore((s) => s.refreshSeconds);
   const showAccountBurnrate = useDashboardPreferencesStore((s) => s.accountBurnrateEnabled);
   const accountViewMode = useDashboardPreferencesStore((s) => s.accountViewMode);
   const accountListSort = useDashboardPreferencesStore((s) => s.accountListSort);
@@ -470,16 +471,13 @@ export function DashboardPage() {
       ) : (
         <>
           <StatsGrid stats={view.stats} />
+          <p className="text-xs text-muted-foreground">{t("usage.tokens.timing", { seconds: refreshSeconds })}</p>
 
           {view.weeklyCreditPace ? (
             <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
               <UsageDonuts
                 primaryItems={view.primaryUsageItems}
                 secondaryItems={view.secondaryUsageItems}
-                primaryTotal={overview?.summary.primaryWindow.capacityCredits ?? 0}
-                secondaryTotal={overview?.summary.secondaryWindow?.capacityCredits ?? 0}
-                primaryCenterValue={view.primaryTotal}
-                secondaryCenterValue={view.secondaryTotal}
                 safeLinePrimary={view.safeLinePrimary}
                 safeLineSecondary={view.safeLineSecondary}
               />
@@ -489,10 +487,6 @@ export function DashboardPage() {
             <UsageDonuts
               primaryItems={view.primaryUsageItems}
               secondaryItems={view.secondaryUsageItems}
-              primaryTotal={overview?.summary.primaryWindow.capacityCredits ?? 0}
-              secondaryTotal={overview?.summary.secondaryWindow?.capacityCredits ?? 0}
-              primaryCenterValue={view.primaryTotal}
-              secondaryCenterValue={view.secondaryTotal}
               safeLinePrimary={view.safeLinePrimary}
               safeLineSecondary={view.safeLineSecondary}
             />

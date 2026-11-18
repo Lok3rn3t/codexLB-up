@@ -20,3 +20,10 @@ class DashboardModel(BaseModel):
                 return value.isoformat() + "Z"
             return value.isoformat().replace("+00:00", "Z")
         return value
+
+
+class TokenUsageCoverage(DashboardModel):
+    complete_requests: int = 0
+    partial_requests: int = 0
+    missing_requests: int = 0
+    unknown_requests: int = 0

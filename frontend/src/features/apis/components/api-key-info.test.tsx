@@ -102,7 +102,8 @@ describe("ApiKeyInfo", () => {
 			/>,
 		);
 
-		expect(screen.getByText(/50K tok/)).toBeInTheDocument();
+  expect(screen.getByText(/≥ 50,000 tok/)).toBeInTheDocument();
+  expect(screen.getByText("Coverage unknown")).toBeInTheDocument();
 		expect(screen.getByText(/10K cached/)).toBeInTheDocument();
 		expect(screen.getByText(/150 req/)).toBeInTheDocument();
 		expect(screen.getByText(/\$1.23/)).toBeInTheDocument();

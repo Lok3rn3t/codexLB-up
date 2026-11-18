@@ -7,6 +7,44 @@ import { renderWithProviders } from "@/test/utils";
 import { ApiKeysOverview } from "./api-keys-overview";
 
 describe("ApiKeysOverview", () => {
+  it("preserves complete measured totals when another key has never been used", () => {
+    renderWithProviders(<ApiKeysOverview apiKeys={[
+      createApiKey({ id: "used", usageSummary: { requestCount: 1, totalTokens: 130, cachedInputTokens: 0, totalCostUsd: 0,
+        tokenUsage: { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 } } }),
+      createApiKey({ id: "unused", usageSummary: null }),
+    ]} />);
+    const requests = screen.getByTestId("api-keys-overview-stat-lifetime-requests");
+    expect(requests).toHaveTextContent("130 tokens");
+    expect(requests).not.toHaveTextContent("≥");
+    expect(requests).toHaveTextContent("1 complete · 0 partial · 0 missing · 0 unknown");
+  });
+
+  it.each([
+    ["complete", { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 }, "0 tokens"],
+    ["partial", { completeRequests: 0, partialRequests: 1, missingRequests: 0, unknownRequests: 0 }, "≥ 0 tokens"],
+    ["missing", { completeRequests: 0, partialRequests: 0, missingRequests: 1, unknownRequests: 0 }, "Usage unavailable"],
+  ])("distinguishes %s zero-token summaries", (_label, tokenUsage, expected) => {
+    renderWithProviders(<ApiKeysOverview apiKeys={[
+      createApiKey({ usageSummary: { requestCount: 1, totalTokens: 0, cachedInputTokens: 0, totalCostUsd: 0, tokenUsage } }),
+    ]} />);
+    const panel = screen.getByTestId("api-keys-overview-tokens-panel");
+    expect(panel).toHaveTextContent(expected);
+    if (expected !== "Usage unavailable") expect(panel).not.toHaveTextContent("Usage unavailable");
+  });
+
+  it("marks known token totals as partial when another key has missing usage", () => {
+    renderWithProviders(<ApiKeysOverview apiKeys={[
+      createApiKey({ id: "partial", usageSummary: { requestCount: 1, totalTokens: 130, cachedInputTokens: 40, totalCostUsd: 0,
+        tokenUsage: { completeRequests: 0, partialRequests: 1, missingRequests: 0, unknownRequests: 0 } } }),
+      createApiKey({ id: "missing", usageSummary: { requestCount: 1, totalTokens: 0, cachedInputTokens: 0, totalCostUsd: 0,
+        tokenUsage: { completeRequests: 0, partialRequests: 0, missingRequests: 1, unknownRequests: 0 } } }),
+    ]} />);
+    const requests = screen.getByTestId("api-keys-overview-stat-lifetime-requests");
+    expect(requests).toHaveTextContent("≥ 130 tokens");
+    expect(requests).toHaveTextContent("0 complete · 1 partial · 1 missing · 0 unknown");
+    expect(screen.getByTestId("api-keys-overview-tokens-panel")).toHaveTextContent("≥ 130");
+  });
+
   it("summarizes the full key set and breaks usage down by metric", () => {
     renderWithProviders(
       <ApiKeysOverview

@@ -9,6 +9,21 @@ import { usePrivacyStore } from "@/hooks/use-privacy";
 import { formatTimeLong } from "@/utils/formatters";
 
 describe("ConversationTable", () => {
+  it("distinguishes unmeasured conversation usage from measured zero", () => {
+    render(<ConversationTable conversations={[
+      createConversationEntry({ conversationId: "conv_missing", totalTokens: 0,
+        tokenUsage: { completeRequests: 0, partialRequests: 0, missingRequests: 1, unknownRequests: 0 } }),
+      createConversationEntry({ conversationId: "conv_zero", totalTokens: 0,
+        tokenUsage: { completeRequests: 1, partialRequests: 0, missingRequests: 0, unknownRequests: 0 } }),
+    ]} accounts={[]} total={2} limit={25} offset={0} hasMore={false}
+      onLimitChange={vi.fn()} onOffsetChange={vi.fn()} onSelect={vi.fn()} />);
+    const missing = screen.getByText("conv_missing").closest("tr")!;
+    const zero = screen.getByText("conv_zero").closest("tr")!;
+    expect(within(missing).getByText("--")).toBeInTheDocument();
+    expect(within(missing).getByText("0 complete · 0 partial · 1 missing · 0 unknown")).toBeInTheDocument();
+    expect(within(zero).getByText("0")).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     useDateDisplayFormatStore.setState({ dateDisplayFormat: "default" });
     usePrivacyStore.setState({ blurred: false });

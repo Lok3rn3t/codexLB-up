@@ -22,6 +22,7 @@ from app.modules.request_logs.schemas import (
     RequestLogConversation,
     RequestLogEntry,
 )
+from app.modules.shared.schemas import TokenUsageCoverage
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,6 +321,7 @@ def _to_conversations(result: ConversationListResult, api_key_names: dict[str, s
                 total_tokens=summary.total_tokens,
                 cached_input_tokens=summary.cached_input_tokens,
                 total_cost_usd=summary.cost_usd,
+                token_usage=TokenUsageCoverage.model_validate(summary.token_usage, from_attributes=True),
             )
         )
     return entries
@@ -342,6 +344,7 @@ def _to_conversation_details(result: ConversationDetailsResult) -> ConversationD
                 cached_input_tokens=row.cached_input_tokens,
                 total_output_tokens=row.output_tokens,
                 total_cost_usd=row.cost_usd,
+                token_usage=TokenUsageCoverage.model_validate(row.token_usage, from_attributes=True),
             )
             for row in result.model_stats
         ],

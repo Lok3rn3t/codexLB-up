@@ -1,3 +1,4 @@
+import { summarizeTokenUsage } from "@/utils/token-usage";
 import { lazy, Suspense } from "react";
 import { Clock, Flame, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -247,6 +248,7 @@ function AccountUsagePanelContent({
   const secondary = secondaryState.percent;
   const monthly = monthlyState.percent;
   const requestUsage = account.requestUsage ?? null;
+  const tokenUsage = summarizeTokenUsage(requestUsage?.totalTokens, requestUsage?.tokenUsage);
   const hasRequestUsage = (requestUsage?.requestCount ?? 0) > 0;
   const hasPrimaryWindow = account.windowMinutesPrimary != null || primaryState.everKnown;
   const hasSecondaryWindow = account.windowMinutesSecondary != null || secondaryState.everKnown;
@@ -286,11 +288,12 @@ function AccountUsagePanelContent({
         {hasRequestUsage ? (
           <p className="mt-1 break-words text-xs tabular-nums text-muted-foreground">
             {t("accounts.usage.requestUsageMeta", {
-              tokens: formatCompactNumber(requestUsage?.totalTokens),
+              tokens: tokenUsage.value,
               cached: formatCompactNumber(requestUsage?.cachedInputTokens),
               requests: formatCompactNumber(requestUsage?.requestCount),
               cost: formatCurrency(requestUsage?.totalCostUsd),
             })}
+            <span className="mt-1 block">{tokenUsage.note}</span>
           </p>
         ) : (
           <p className="mt-1 text-xs text-muted-foreground">{t("accounts.usage.noRequestUsage")}</p>

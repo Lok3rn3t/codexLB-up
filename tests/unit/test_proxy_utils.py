@@ -34960,8 +34960,11 @@ async def test_stream_api_key_settlement_detaches_and_closes_repo(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["success", "error"])
 @pytest.mark.parametrize("cancel_caller", [False, True])
-async def test_stream_api_key_settlement_wait_option_blocks_until_finalized(monkeypatch, cancel_caller: bool):
+async def test_stream_api_key_settlement_wait_option_blocks_until_finalized(
+    monkeypatch, cancel_caller: bool, status: str
+):
     """Ordering-sensitive callers (websocket error path) opt into waiting so
     the settlement commits before load-balancer health writes."""
     started = asyncio.Event()
@@ -35008,7 +35011,7 @@ async def test_stream_api_key_settlement_wait_option_blocks_until_finalized(monk
         model="gpt-5.5",
     )
     settlement = proxy_service._StreamSettlement(
-        status="success",
+        status=status,
         model="gpt-5.5",
         input_tokens=1,
         output_tokens=2,
@@ -35107,7 +35110,8 @@ async def test_stream_api_key_settlement_wait_option_reports_fallback_release_re
 
 
 @pytest.mark.asyncio
-async def test_stream_api_key_settlement_detached_finalizes_without_release(monkeypatch):
+@pytest.mark.parametrize("status", ["success", "error"])
+async def test_stream_api_key_settlement_detached_finalizes_without_release(monkeypatch, status: str):
     finalized: list[str] = []
     repo = SimpleNamespace(api_keys=object())
 
@@ -35148,7 +35152,7 @@ async def test_stream_api_key_settlement_detached_finalizes_without_release(monk
         model="gpt-5.5",
     )
     settlement = proxy_service._StreamSettlement(
-        status="success",
+        status=status,
         model="gpt-5.5",
         input_tokens=1,
         output_tokens=2,

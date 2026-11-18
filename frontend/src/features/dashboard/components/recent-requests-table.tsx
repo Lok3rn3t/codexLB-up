@@ -47,6 +47,7 @@ import { usePermission } from "@/features/auth/hooks/use-auth";
 import { useDateDisplayFormatStore } from "@/hooks/use-date-format";
 import { cn } from "@/lib/utils";
 import { REQUEST_STATUS_LABELS } from "@/utils/constants";
+import { formatObservedTokens, tokenUsageLabel } from "@/utils/token-usage";
 import {
   formatDateTimeInline,
   formatDateTimeLines,
@@ -54,7 +55,7 @@ import {
   formatCurrency,
   formatModelLabel,
   formatElapsed,
-  formatSlug,
+  formatPlanLabel,
 } from "@/utils/formatters";
 
 const STATUS_CLASS_MAP: Record<string, string> = {
@@ -419,7 +420,7 @@ export function RecentRequestsTable({
               const showRequestedTier =
                 !!request.requestedServiceTier && request.requestedServiceTier !== visibleServiceTier;
               const planType = request.planType?.trim().toLowerCase() || null;
-              const planLabel = planType ? formatSlug(planType) : "--";
+              const planLabel = planType ? formatPlanLabel(planType) : "--";
               const upstreamTransport = request.upstreamTransport;
               const generationSpeed = formatGenerationSpeed(request);
 
@@ -506,7 +507,10 @@ export function RecentRequestsTable({
                   </TableCell> : null}
                   {isColumnVisible("tokens") ? <TableCell className="text-right align-top font-mono text-xs tabular-nums">
                     <div className="leading-tight">
-                      <div>{formatCompactNumber(request.tokens)}</div>
+                      <div title={request.tokens == null ? undefined : String(request.tokens)}>{formatObservedTokens(request.tokens, request.usageCompleteness)}</div>
+                      {request.usageCompleteness !== "complete" ? (
+                        <div className="text-[11px] text-muted-foreground">{tokenUsageLabel(request.usageCompleteness)}</div>
+                      ) : null}
                       {request.cachedInputTokens != null && request.cachedInputTokens > 0 && (
                         <div className="text-[11px] text-muted-foreground">
                           {t("common.units.cachedShort", { count: formatCompactNumber(request.cachedInputTokens) })}
@@ -598,7 +602,8 @@ export function RecentRequestsTable({
                 <RequestDetailField label={t("dashboard.requests.columns.status")} value={selectedRequest ? t(`dashboard.requestStatus.${selectedRequest.status}`, { defaultValue: REQUEST_STATUS_LABELS[selectedRequest.status] ?? selectedRequest.status }) : "—"} />
                 <RequestDetailField label={t("dashboard.requests.columns.model")} value={selectedRequest ? formatModelLabel(selectedRequest.model, selectedRequest.reasoningEffort, selectedRequest.actualServiceTier ?? selectedRequest.serviceTier) : "—"} mono />
                 <RequestDetailField label={t("dashboard.requestDetails.requestKind")} value={selectedRequest ? (REQUEST_KIND_LABELS[selectedRequest.requestKind] ?? selectedRequest.requestKind) : "—"} />
-                <RequestDetailField label={t("dashboard.requests.columns.plan")} value={selectedRequest?.planType ? formatSlug(selectedRequest.planType) : "—"} />
+                <RequestDetailField label={t("dashboard.requests.columns.plan")} value={selectedRequest?.planType ? formatPlanLabel(selectedRequest.planType) : "—"} />
+                <RequestDetailField label={t("usage.tokens.state")} value={tokenUsageLabel(selectedRequest?.usageCompleteness)} />
                 <RequestDetailField label={t("dashboard.requestDetails.elapsed")} value={formatElapsed(selectedRequest?.latencyMs ?? null)} />
                 <RequestDetailField label="TTFT" value={formatElapsed(selectedRequest?.latencyFirstTokenMs ?? null)} />
                 <RequestDetailField label={t("dashboard.requestDetails.queue")} value={formatElapsed(selectedRequest?.latencyQueueMs ?? null)} />

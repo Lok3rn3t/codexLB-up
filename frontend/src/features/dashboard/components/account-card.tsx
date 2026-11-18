@@ -7,8 +7,6 @@ import { useSmoothPercent } from "@/hooks/use-smooth-percent";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import {
-  accountSubscriptionCredits,
-  formatCreditValue,
   formatPurchasedCredits,
 } from "@/features/dashboard/account-credit-display";
 import { cn } from "@/lib/utils";
@@ -22,6 +20,7 @@ import {
 import {
   formatDateTimeInline,
   formatPercentNullable,
+  formatPlanLabel,
   formatQuotaResetLabel,
   formatSingleUnitRemaining,
   formatSlug,
@@ -70,7 +69,7 @@ function QuotaBar({
           {formatPercentNullable(percent, 1)}
         </span>
       </div>
-      <div className={cn("h-1.5 w-full overflow-hidden rounded-full", quotaBarTrack(clamped))}>
+      <div className={cn("h-1.5 w-full overflow-hidden rounded-full", hasPercent ? quotaBarTrack(clamped) : "bg-muted")}>
         <div
           className={cn("h-full rounded-full transition-colors duration-500 ease-out", quotaBarColor(clamped))}
           style={{ width: `${clamped}%` }}
@@ -100,7 +99,6 @@ export function AccountCard({ account, showAccountId = false, readOnly = false, 
   const hasMonthlyWindow = account.windowMinutesMonthly != null || monthlyState.everKnown;
   const weeklyOnly = !hasPrimaryWindow && hasSecondaryWindow;
   const monthlyOnly = hasMonthlyWindow && !hasPrimaryWindow && !hasSecondaryWindow;
-  const subscriptionCreditsLabel = formatCreditValue(accountSubscriptionCredits(account));
   const purchasedCreditsLabel = formatPurchasedCredits(account, t("common.states.unlimited"));
 
   const primaryReset = formatQuotaResetLabel(account.resetAtPrimary ?? null);
@@ -109,7 +107,7 @@ export function AccountCard({ account, showAccountId = false, readOnly = false, 
 
   const title = account.displayName || account.email;
   const compactId = formatCompactAccountId(account.accountId);
-  const planLabel = formatSlug(account.planType);
+  const planLabel = formatPlanLabel(account.planType);
   const emailSubtitle =
     account.displayName && account.displayName !== account.email
       ? account.email
@@ -202,12 +200,6 @@ export function AccountCard({ account, showAccountId = false, readOnly = false, 
       </div>
 
       <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
-        <p>
-          {t("dashboard.accounts.subscriptionCredits")}:{" "}
-          <span className="font-medium tabular-nums text-foreground">
-            {subscriptionCreditsLabel}
-          </span>
-        </p>
         <p>
           {t("dashboard.accounts.purchasedCredits")}:{" "}
           <span className="font-medium tabular-nums text-foreground">

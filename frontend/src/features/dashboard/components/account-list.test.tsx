@@ -21,7 +21,7 @@ describe("AccountList", () => {
     });
   }
 
-  it("renders a compact list with subscription and purchased credits", () => {
+  it("renders reported quotas and purchased credits without synthetic subscription credits", () => {
     render(
       <AccountList
         accounts={[
@@ -45,7 +45,8 @@ describe("AccountList", () => {
     expect(screen.getByText("5h")).toBeInTheDocument();
     expect(screen.getByText("Weekly")).toBeInTheDocument();
     expect(screen.getAllByTestId("account-list-quota-meter")).toHaveLength(2);
-    expect(screen.getByText("5065.20")).toBeInTheDocument();
+    expect(screen.queryByText("5065.20")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Subscription" })).not.toBeInTheDocument();
     expect(screen.getByText("42.50")).toBeInTheDocument();
     expect(screen.getByText("On")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-account-list").firstElementChild).toHaveClass("min-w-[76rem]");
@@ -73,6 +74,36 @@ describe("AccountList", () => {
 
     const row = screen.getByTestId("account-list-row");
     expect(within(row).getByText((text) => text.includes("Succeeded | 5h |"))).toBeInTheDocument();
+  });
+
+  it("displays distinct subscription labels and sorts by the displayed plan", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccountList
+        accounts={[
+          createAccountSummary({
+            accountId: "acc-personal",
+            displayName: "Personal Account",
+            planType: "prolite",
+          }),
+          createAccountSummary({
+            accountId: "acc-business",
+            displayName: "Workspace Account",
+            planType: "self_serve_business_prolite",
+          }),
+        ]}
+      />,
+    );
+
+    const [personalRow, workspaceRow] = screen.getAllByTestId("account-list-row");
+    expect(within(personalRow).getByText("Pro 100")).toBeInTheDocument();
+    expect(within(workspaceRow).getByText("Business Premium")).toBeInTheDocument();
+    expect(screen.queryByText("Prolite")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Plan" }));
+    expect(rowNames()).toEqual(["Workspace Account", "Personal Account"]);
+    await user.click(screen.getByRole("button", { name: "Plan, sorted ascending" }));
+    expect(rowNames()).toEqual(["Personal Account", "Workspace Account"]);
   });
 
   it("exposes account actions from list rows", async () => {
@@ -272,7 +303,7 @@ describe("AccountList", () => {
     expect(rowNames()).toEqual(["Low Account", "Empty Account", "Unknown Account"]);
   });
 
-  it("sorts subscription credits independently of purchased credits", async () => {
+  it("sorts reported quota independently of estimated capacity and purchased credits", async () => {
     const user = userEvent.setup();
     render(
       <AccountList
@@ -282,18 +313,20 @@ describe("AccountList", () => {
             displayName: "High Quota Account",
             creditsBalance: 0,
             remainingCreditsSecondary: 5_000,
+            usage: { primaryRemainingPercent: 80, secondaryRemainingPercent: 80 },
           }),
           createAccountSummary({
             accountId: "acc-low-quota",
             displayName: "Low Quota Account",
             creditsBalance: 100,
             remainingCreditsSecondary: 50,
+            usage: { primaryRemainingPercent: 20, secondaryRemainingPercent: 20 },
           }),
         ]}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Subscription" }));
+    await user.click(screen.getByRole("button", { name: "Quota" }));
 
     expect(rowNames()).toEqual(["Low Quota Account", "High Quota Account"]);
   });

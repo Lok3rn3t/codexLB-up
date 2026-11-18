@@ -22,7 +22,7 @@ describe("AccountCard", () => {
     expect(screen.getByText("Weekly")).toBeInTheDocument();
   });
 
-  it("keeps the last quota visible while a refreshed value is temporarily unknown", () => {
+  it("shows missing refreshed quota without presenting the old percentage as current", () => {
     const account = createAccountSummary({
       usage: { primaryRemainingPercent: 64, secondaryRemainingPercent: 73 },
       windowMinutesPrimary: 300,
@@ -43,7 +43,8 @@ describe("AccountCard", () => {
       />,
     );
 
-    expect(screen.getByText("64%")).toBeInTheDocument();
+    expect(screen.queryByText("64%")).not.toBeInTheDocument();
+    expect(screen.getAllByText("--").length).toBeGreaterThan(0);
     expect(screen.getByText("5h")).toBeInTheDocument();
   });
 
@@ -126,7 +127,7 @@ describe("AccountCard", () => {
     expect(container.querySelector(".privacy-blur")).not.toBeNull();
   });
 
-  it("renders subscription and purchased credits separately", () => {
+  it("shows reported quotas and purchased credits without synthetic subscription credits", () => {
     const account = createAccountSummary({
       creditsBalance: 0,
       remainingCreditsSecondary: 5_065.2,
@@ -134,8 +135,8 @@ describe("AccountCard", () => {
 
     render(<AccountCard account={account} />);
 
-    expect(screen.getByText("Subscription quota:")).toBeInTheDocument();
-    expect(screen.getByText("5065.20")).toBeInTheDocument();
+    expect(screen.queryByText("Subscription quota:")).not.toBeInTheDocument();
+    expect(screen.queryByText("5065.20")).not.toBeInTheDocument();
     expect(screen.getByText("Purchased credits:")).toBeInTheDocument();
     expect(screen.getByText("0.00")).toBeInTheDocument();
   });
@@ -149,7 +150,7 @@ describe("AccountCard", () => {
 
     render(<AccountCard account={account} />);
 
-    expect(screen.getByText("5065.20")).toBeInTheDocument();
+    expect(screen.queryByText("5065.20")).not.toBeInTheDocument();
     expect(screen.getByText("Unlimited")).toBeInTheDocument();
   });
 

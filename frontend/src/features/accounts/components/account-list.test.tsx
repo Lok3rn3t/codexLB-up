@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountList } from "@/features/accounts/components/account-list";
 import { useAccountQuotaDisplayStore } from "@/hooks/use-account-quota-display";
+import { createAccountSummary } from "@/test/mocks/factories";
 
 describe("AccountList", () => {
   beforeEach(() => {
@@ -62,6 +63,45 @@ describe("AccountList", () => {
 
     await user.click(screen.getByText("secondary@example.com"));
     expect(onSelect).toHaveBeenCalledWith("acc-2");
+  });
+
+  it("finds subscriptions by their displayed label or upstream identifier", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccountList
+        accounts={[
+          createAccountSummary({
+            accountId: "acc-workspace",
+            email: "workspace@example.com",
+            displayName: "Workspace",
+            planType: "self_serve_business_prolite",
+          }),
+          createAccountSummary({
+            accountId: "acc-personal",
+            email: "personal@example.com",
+            displayName: "Personal",
+            planType: "prolite",
+          }),
+        ]}
+        selectedAccountId={null}
+        onSelect={vi.fn()}
+        onOpenImport={vi.fn()}
+        onOpenOauth={vi.fn()}
+      />,
+    );
+
+    const search = screen.getByPlaceholderText("Search accounts...");
+    await user.type(search, "business premium");
+    expect(screen.getByText("workspace@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("personal@example.com")).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, "Pro 100");
+    expect(screen.getByText("personal@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("workspace@example.com")).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, "self_serve_business_prolite");
+    expect(screen.getByText("workspace@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("personal@example.com")).not.toBeInTheDocument();
   });
 
   it("sorts accounts by the rows actually rendered", () => {

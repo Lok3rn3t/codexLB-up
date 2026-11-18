@@ -262,6 +262,7 @@ function RunwayWeeklyCreditsPaceCard({
 
   return (
     <section className="rounded-xl border bg-card p-5" aria-label={t("dashboard.weeklyPace.title")}>
+      <p className="mb-3 text-xs text-muted-foreground">{t("usage.quota.estimateNote")}</p>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">{t("dashboard.weeklyPace.title")}</h3>
         <span
@@ -456,6 +457,7 @@ function LegacyWeeklyCreditsPaceCard({ pace }: { pace: WeeklyCreditPace }) {
 
   return (
     <section className="rounded-xl border bg-card p-5" aria-label={t("dashboard.weeklyPace.title")}>
+      <p className="mb-3 text-xs text-muted-foreground">{t("usage.quota.estimateNote")}</p>
       <div className="mb-4 flex justify-between gap-3">
         <div>
 	          <h3 className="text-sm font-semibold">{t("dashboard.weeklyPace.title")}</h3>

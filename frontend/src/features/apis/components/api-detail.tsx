@@ -92,6 +92,7 @@ export function ApiDetail({
 		return {
 			requestCount: usage7Day.totalRequests,
 			totalTokens: usage7Day.totalTokens,
+            tokenUsage: usage7Day.tokenUsage,
 			cachedInputTokens: usage7Day.cachedInputTokens,
 			totalCostUsd: usage7Day.totalCostUsd,
 		};
