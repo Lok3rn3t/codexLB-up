@@ -4264,12 +4264,12 @@ Each overview quota card MUST identify its window and measured average. When ava
 
 ### Requirement: Dashboard token total provides compact and exact counts
 
-The overview Tokens card MUST use compact K, M and B notation for large totals. The exact recorded token count MUST be available from the card. For incomplete usage, both presentations MUST retain the ≥ lower-bound indicator and the compact value MUST round down so the displayed bound never exceeds the observed total.
+The overview Tokens card MUST use compact K, M and B notation with at most one fractional digit for large totals. The exact recorded token count MUST be available from the card. For incomplete usage, both presentations MUST retain the ≥ lower-bound indicator and the compact value MUST round down so the displayed bound never exceeds the observed total.
 
 #### Scenario: Partial token total in the weekly overview
 
 - **WHEN** the seven-day token total includes 12,345,678 recorded tokens and some requests lack usage
-- **THEN** the card shows a compact total in millions prefixed with ≥
+- **THEN** the card shows ≥ 12.3M
 - **AND** inspecting the card's total reveals the exact lower bound of 12,345,678 tokens
 
 ### Requirement: Request-log plan badges fit their own column

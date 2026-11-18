@@ -14,11 +14,11 @@ describe("StatsGrid", () => {
   it("shows the exact lower bound when the token value receives keyboard focus", async () => {
     const user = userEvent.setup();
     render(<StatsGrid stats={[{
-      label: "Tokens (7d)", value: "≥ 958.81M", exactValue: "≥ 958,815,427",
+      label: "Tokens (7d)", value: "≥ 958.8M", exactValue: "≥ 958,815,427",
       icon: Coins, trend: EMPTY_TREND, trendColor: "#8b5cf6",
     }]} />, { wrapper: TooltipProvider });
     await user.tab();
-    expect(screen.getByRole("button", { name: "≥ 958.81M" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "≥ 958.8M" })).toHaveFocus();
     expect(await screen.findByRole("tooltip")).toHaveTextContent("≥ 958,815,427");
   });
 

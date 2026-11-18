@@ -15,6 +15,7 @@ The dashboard can expose excessive precision in a quota forecast while rounding 
 
 - `account-quota-presentation` governs the precision of measured percentages and forecasts.
 - `frontend-architecture` governs the quota cards, token summary and request-log layout.
+- `observed-token-usage` governs the removal of the refresh-timing note beneath the summary cards.
 
 ## Impact
 

@@ -86,8 +86,9 @@ estimates explicitly and MUST NOT imply a measured fungible pool of tokens.
 
 ### Requirement: Measurement timing is explicit
 
-Usage displays SHALL explain that actual token counters update after upstream
-usage is received. They MUST NOT claim that visible text deltas reveal hidden
+Displayed token counts SHALL update from reported upstream usage. The dashboard
+overview MUST omit the refresh-timing explanation beneath the summary cards.
+Usage displays MUST NOT claim that visible text deltas reveal hidden
 reasoning, server-side context or cache counts. No character-to-token constant
 SHALL be introduced as an authoritative live usage counter.
 

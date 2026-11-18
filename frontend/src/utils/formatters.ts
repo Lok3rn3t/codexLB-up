@@ -24,7 +24,9 @@ const compactOptions = {
   maximumFractionDigits: 2,
 } as const;
 const compactFormatter = new Intl.NumberFormat("en-US", compactOptions);
-const compactFloorFormatter = new Intl.NumberFormat("en-US", { ...compactOptions, roundingMode: "floor" });
+const tokenCompactOptions = { ...compactOptions, maximumFractionDigits: 1 } as const;
+const tokenTotalFormatter = new Intl.NumberFormat("en-US", tokenCompactOptions);
+const tokenLowerBoundFormatter = new Intl.NumberFormat("en-US", { ...tokenCompactOptions, roundingMode: "floor" });
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -199,10 +201,13 @@ export function formatNumber(value: unknown): string {
   return numeric === null ? "--" : getNumberFormatter().format(numeric);
 }
 
-export function formatCompactNumber(value: unknown, rounding: "nearest" | "floor" = "nearest"): string {
+export function formatCompactNumber(value: unknown): string {
   const numeric = toNumber(value);
-  const formatter = rounding === "floor" ? compactFloorFormatter : compactFormatter;
-  return numeric === null ? "--" : formatter.format(numeric);
+  return numeric === null ? "--" : compactFormatter.format(numeric);
+}
+
+export function formatCompactTokenTotal(tokens: number, complete: boolean): string {
+  return complete ? tokenTotalFormatter.format(tokens) : `≥ ${tokenLowerBoundFormatter.format(tokens)}`;
 }
 
 export function formatCurrency(value: unknown): string {

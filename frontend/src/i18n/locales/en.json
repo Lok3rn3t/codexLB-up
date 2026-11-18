@@ -2043,7 +2043,6 @@
   "usage.tokens.unknown": "Coverage unknown",
   "usage.tokens.state": "Token measurement",
   "usage.tokens.coverage": "{{completeRequests}} complete · {{partialRequests}} partial · {{missingRequests}} missing · {{unknownRequests}} unknown",
-  "usage.tokens.timing": "Token counts update after upstream reports usage. Overview refreshes every {{seconds}} seconds while visible; request rows refresh every 30 seconds. Only requests recorded by this proxy are included; ≥ marks a known lower bound.",
   "usage.quota.averageRemaining": "Average remaining",
   "usage.quota.averageUsed": "Average used",
   "usage.quota.knownAccounts": "{{count}} reporting accounts",

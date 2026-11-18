@@ -17,6 +17,7 @@ import { summarizeTokenUsage } from "@/utils/token-usage";
 import {
   formatCachedTokensMeta,
   formatCompactNumber,
+  formatCompactTokenTotal,
   formatCurrency,
   formatNumber,
   formatRate,
@@ -736,7 +737,7 @@ export function buildDashboardView(
       label: t("dashboard.stats.tokens", { timeframe: timeframeLabel }),
       value: largeTokenTotal === null
         ? tokenUsage.value
-        : tokenPrefix + formatCompactNumber(largeTokenTotal, tokenUsage.complete ? "nearest" : "floor"),
+        : formatCompactTokenTotal(largeTokenTotal, tokenUsage.complete),
       exactValue: largeTokenTotal === null ? undefined : tokenPrefix + formatNumber(largeTokenTotal),
       meta: `${formatCachedTokensMeta(metrics?.tokens, metrics?.cachedInputTokens)} · ${tokenUsage.note}`,
       comparison: buildStatComparison(metrics?.tokens, comparison?.previous.tokens ?? 0,

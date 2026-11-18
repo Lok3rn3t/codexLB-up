@@ -2043,7 +2043,6 @@
   "usage.tokens.unknown": "统计范围未知",
   "usage.tokens.state": "Token 测量状态",
   "usage.tokens.coverage": "完整 {{completeRequests}} · 部分 {{partialRequests}} · 缺失 {{missingRequests}} · 未知 {{unknownRequests}}",
-  "usage.tokens.timing": "上游报告用量后才更新 token 数。页面可见时，概览每 {{seconds}} 秒刷新，请求列表每 30 秒刷新。仅包含此代理记录的请求；≥ 表示已知下限。",
   "usage.quota.averageRemaining": "平均剩余",
   "usage.quota.averageUsed": "平均已用",
   "usage.quota.knownAccounts": "{{count}} 个有测量值的账户",
