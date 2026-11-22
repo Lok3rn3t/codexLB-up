@@ -1462,14 +1462,18 @@ Batch rates and cache-write rates MUST NOT be used without corresponding proxy r
 
 ### Requirement: GPT-6.2 Astra and Sol have bundled usage prices
 
-API-key usage, request-log, reservation, and aggregate cost calculations MUST use the following bundled rates when no catalog entry takes precedence under the upstream-metadata capability. Each cell lists input / cached input / output in USD per million tokens.
+When no upstream-metadata catalog price takes precedence, API-key usage, request logs, reservations, and aggregates MUST use the bundled rates below. Fast and priority MUST use Fast rates and flex MUST use Standard rates. Above 272,000 input tokens, long-context rates MUST apply to the entire request. Otherwise short-context rates MUST apply. Without an exact price, versioned and snapshot aliases MUST use the canonical entry.
+
+#### Scenario: Apply the bundled rates
+
+- **GIVEN** a model and tier in the table
+- **WHEN** bundled pricing applies
+- **THEN** the input, cached input, and output rates in USD per million tokens are as follows
 
 | Model | Standard short | Standard long | Fast short | Fast long |
 | --- | --- | --- | --- | --- |
 | `gpt-6.2-astra` | 8 / 0.40 / 40 | 16 / 0.80 / 60 | 16 / 0.80 / 80 | 32 / 1.60 / 120 |
 | `gpt-6.2-sol` | 2 / 0.10 / 10 | 4 / 0.20 / 15 | 4 / 0.20 / 20 | 8 / 0.40 / 30 |
-
-For these defaults, `fast` and `priority` MUST use Fast rates, and `flex` MUST use Standard rates. The system MUST apply long-context rates to the entire request when input exceeds 272,000 tokens and short-context rates otherwise. Versioned and snapshot aliases MUST resolve to the canonical entry when there is no exact price.
 
 #### Scenario: A dated Astra snapshot uses Fast long-context rates
 
