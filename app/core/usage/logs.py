@@ -91,7 +91,7 @@ def calculated_cost_from_log(log: RequestLogLike, *, precision: int | None = Non
     usage = usage_tokens_from_log(log)
     if not usage:
         return None
-    resolved = get_pricing_for_model(log.model, None, None)
+    resolved = get_pricing_for_model(log.model, priced_at=getattr(log, "requested_at", None))
     if not resolved:
         return None
     _, price = resolved
@@ -128,7 +128,7 @@ def cost_breakdown_from_log(log: RequestLogLike, *, precision: int | None = None
     raw_total_usd: float | None = None
     total_usd: float | None = None
     if log.model:
-        resolved = get_pricing_for_model(log.model, None, None)
+        resolved = get_pricing_for_model(log.model, priced_at=getattr(log, "requested_at", None))
         if resolved is not None:
             _, price = resolved
             input_tokens = log.input_tokens

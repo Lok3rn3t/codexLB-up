@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from app.core.openai.models import ResponseUsage, ResponseUsageDetails
@@ -11,12 +13,28 @@ from app.core.usage.pricing import (
     UsageTokens,
     calculate_cost_breakdown_from_usage,
     calculate_cost_from_usage,
+    calculate_cost_microdollars_from_usage,
     calculate_costs,
     get_pricing_for_model,
     resolve_model_alias,
 )
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6-astra-2026-09-01"])
+@pytest.mark.parametrize(
+    ("input_tokens", "cached_tokens", "expected"),
+    [(100000, 0, 9.0), (272000, 20000, 18.24), (272001, 20000, 34.98012)],
+)
+def test_astra_ultrafast_cost_uses_published_token_rates(model, input_tokens, cached_tokens, expected):
+    resolved = get_pricing_for_model(model)
+    assert resolved is not None
+    usage = UsageTokens(input_tokens, 10000, cached_tokens)
+
+    cost = calculate_cost_from_usage(usage, resolved[1], service_tier=" UltraFast ")
+
+    assert cost == pytest.approx(expected)
 
 
 def test_resolve_model_alias_longest_match():
@@ -26,6 +44,21 @@ def test_resolve_model_alias_longest_match():
         "gpt-5.1-codex-max*": "gpt-5.1-codex-max",
     }
     assert resolve_model_alias("gpt-5.1-codex-max-2025", aliases) == "gpt-5.1-codex-max"
+
+
+@pytest.mark.parametrize(
+    "price,usage,expected",
+    [
+        (ModelPrice(0.6, 1.2, 0.06), UsageTokens(5, 2, 3), 3),
+        (ModelPrice(0.9999999999999999, 0), UsageTokens(1, 0), 0),
+        (ModelPrice(1.0, 0), UsageTokens(1, 0), 1),
+        (ModelPrice(1.0, 0), None, None),
+        (ModelPrice(1.0, 1.0), UsageTokens(-1, -5, -4), 0),
+        (ModelPrice(1.0, 1.0, 0.5), UsageTokens(3, -1, 5), 1),
+    ],
+)
+def test_microdollar_cost_preserves_fractional_truncation(price, usage, expected):
+    assert calculate_cost_microdollars_from_usage(usage, price) == expected
 
 
 def test_get_pricing_for_model_alias():
@@ -85,7 +118,9 @@ def test_get_pricing_for_model_gpt_5_6_aliases(requested_model: str, canonical_m
 @pytest.mark.parametrize("model", ["gpt-6.2-astra", "gpt-6.2-sol"])
 @pytest.mark.parametrize("suffix", ["2026-11-21", "snapshot"])
 def test_get_pricing_for_model_gpt_6_2_aliases(model: str, suffix: str) -> None:
-    assert get_pricing_for_model(f"{model}-{suffix}", DEFAULT_PRICING_MODELS) == (model, DEFAULT_PRICING_MODELS[model])
+    assert get_pricing_for_model(f"{model}-{suffix}", DEFAULT_PRICING_MODELS) == get_pricing_for_model(
+        model, DEFAULT_PRICING_MODELS
+    )
 
 
 def test_get_pricing_for_model_gpt_5_4_mini_alias():
@@ -485,3 +520,54 @@ def test_calculate_costs_uses_service_tier():
     result = calculate_costs(items, DEFAULT_PRICING_MODELS, DEFAULT_MODEL_ALIASES)
 
     assert result.total_usd_7d == pytest.approx(35.0)
+
+
+@pytest.mark.parametrize(
+    "model,short,long,promo",
+    [
+        ("gpt-6.2-astra", (48, 2.4, 240), (96, 4.8, 360), True),
+        ("gpt-6.2-sol", (12, 0.6, 60), (24, 1.2, 90), True),
+        ("gpt-6-astra", (60, 6, 300), (120, 12, 450), False),
+        ("gpt-6.1-sol", (12, 0.6, 60), (24, 1.2, 90), False),
+    ],
+)
+@pytest.mark.parametrize("input_tokens", [272_000, 272_001])
+@pytest.mark.parametrize(
+    "timestamp,before", [("2027-02-28T23:59:59.999999-08:00", True), ("2027-03-01T08:00:00", False)]
+)
+@pytest.mark.parametrize("suffix", ["2026-11-21", "snapshot"])
+def test_ultrafast_published_schedule(model, short, long, promo, input_tokens, timestamp, before, suffix):
+    priced_at = datetime.fromisoformat(timestamp)
+    resolved = get_pricing_for_model(f"{model}-{suffix}", priced_at=priced_at)
+    assert resolved is not None
+    usage = UsageTokens(input_tokens, 1_000_000, 100_000)
+    input_rate, cache_rate, output_rate = short if input_tokens == 272_000 else long
+    factor = 0.5 if before and promo else 1
+    expected = ((input_tokens - 100_000) * input_rate / 1e6, cache_rate / 10, output_rate)
+    breakdown = calculate_cost_breakdown_from_usage(usage, resolved[1], service_tier="ultrafast")
+    assert breakdown is not None
+    assert (breakdown.input_usd, breakdown.cached_input_usd, breakdown.output_usd) == pytest.approx(
+        tuple(rate * factor for rate in expected)
+    )
+
+
+def test_ultrafast_cost_does_not_follow_broad_standard_aliases():
+    model = "gpt-6.2-astra-law"
+    base = ModelPrice(8, 40, 0.4, ultrafast_input_per_1m=24, ultrafast_output_per_1m=120)
+    resolved = get_pricing_for_model(model, {"gpt-6.2-astra": base})
+    assert resolved is not None
+    usage = UsageTokens(1000, 500)
+    assert calculate_cost_from_usage(usage, resolved[1], service_tier="ultrafast") is None
+    assert calculate_cost_microdollars_from_usage(usage, resolved[1], service_tier="ultrafast") is None
+    assert calculate_cost_from_usage(usage, resolved[1]) == pytest.approx(0.028)
+
+
+def test_undated_catalog_cannot_override_promotion_or_reprice_history():
+    model = "gpt-6.2-sol"
+    catalog = {model: ModelPrice(2, 10, ultrafast_input_per_1m=12, ultrafast_output_per_1m=60)}
+    usage = UsageTokens(0, 1_000_000)
+    items = [
+        CostItem(model, usage, "ultrafast", datetime(2027, 2, 28)),
+        CostItem(model, usage, "ultrafast", datetime(2027, 3, 2)),
+    ]
+    assert calculate_costs(items, catalog).total_usd_7d == 90

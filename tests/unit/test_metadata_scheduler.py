@@ -70,7 +70,7 @@ async def test_newer_bundle_beats_old_disk_cache(setup, monkeypatch):
     monkeypatch.setattr(scheduler, "_run_loop", AsyncMock())
     await scheduler.start()
     bundled = catalog.decode_snapshot(json.loads(catalog.BUNDLE_PATH.read_text()))
-    assert get_pricing_for_model("gpt-6-astra") == ("gpt-6-astra", bundled["gpt-6-astra"])
+    assert catalog.get_active_prices()["gpt-6-astra"] == bundled["gpt-6-astra"]
     await scheduler.stop()
 
 

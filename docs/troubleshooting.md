@@ -13,8 +13,7 @@ Run the [WebSocket verification steps](client-setup.md#verify-websocket-transpor
 
 ## Fast Mode, Ultrafast, and service tiers
 
-Fast Mode, Ultrafast, and service-tier behavior is documented in the
-[Responses API compatibility context](https://github.com/Soju06/codex-lb/blob/main/openspec/specs/responses-api-compat/context.md#fast-mode-and-service-tiers).
+Check the actual service tier in the request log. Ultrafast requires an eligible account. For GPT-6.2 Astra and Sol, USD estimates use 3× Standard through February 28, 2027 Pacific time and 6× starting March 1. Inputs above 272,000 tokens use the long-context rates for the entire request. Subscription allowances and credits have their own schedule. [API pricing](https://developers.openai.com/api/docs/pricing) · [Codex subscription usage](https://learn.chatgpt.com/docs/pricing?codex-pricing-speed=ultrafast) · [Responses compatibility](https://github.com/Lok3rn3t/codexLB-up/blob/codexLB-up/openspec/specs/responses-api-compat/context.md#ultrafast-processing)
 
 ## Old Codex sessions missing after migrating
 

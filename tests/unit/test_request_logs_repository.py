@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import ResourceClosedError
 
+from app.core.usage.logs import cost_breakdown_from_log
 from app.db.models import ModelSource, RequestLog
 from app.db.session import SessionLocal
 from app.modules.request_logs import repository as repository_module
@@ -560,3 +561,30 @@ async def test_conversation_count_cache_evicts_oldest_entry_at_256_entries(monke
 
     assert result.total == 7
     assert len(count_queries) == 258
+
+
+@pytest.mark.asyncio
+async def test_ultrafast_log_keeps_historical_rate_and_persisted_total(db_setup, monkeypatch):
+    monkeypatch.setattr("app.core.usage.pricing.utcnow", lambda: datetime(2027, 3, 2))
+    async with SessionLocal() as session:
+        repo = RequestLogsRepository(session)
+        row = await repo.add_log(
+            account_id=None,
+            request_id="promo-log",
+            model="gpt-6.2-sol",
+            input_tokens=0,
+            output_tokens=1_000_000,
+            latency_ms=2000,
+            status="success",
+            error_code=None,
+            cached_input_tokens=0,
+            service_tier="ultrafast",
+            requested_at=datetime(2027, 3, 1, 7, 59, 59),
+        )
+        assert row.cost_usd == 30
+        breakdown = cost_breakdown_from_log(row)
+        assert breakdown.output_usd == breakdown.total_usd == 30
+        row.cost_usd = 25
+        breakdown = cost_breakdown_from_log(row)
+        assert breakdown.total_usd == 25
+        assert breakdown.output_usd is None
