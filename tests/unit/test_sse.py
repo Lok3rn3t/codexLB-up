@@ -458,3 +458,31 @@ def test_sse_block_with_payload_agrees_with_full_parse(payload) -> None:
     block = sse_block_with_payload(plain, parse_sse_data_json(plain))
     assert parse_sse_data_json(block) == parse_sse_data_json(plain)
     assert extract_sse_data(block) == extract_sse_data(plain)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("after_heartbeat", [False, True])
+async def test_keepalive_propagates_upstream_timeout(after_heartbeat):
+    release = asyncio.Event()
+    closed = asyncio.Event()
+    failure = TimeoutError("upstream read timed out")
+
+    async def source():
+        try:
+            yield "start"
+            await release.wait()
+            raise failure
+        finally:
+            closed.set()
+
+    stream = inject_sse_keepalives(source(), interval_seconds=0.005 if after_heartbeat else 10)
+    assert await anext(stream) == "start"
+    if after_heartbeat:
+        assert await anext(stream) == SSE_KEEPALIVE_FRAME
+    release.set()
+    if after_heartbeat:
+        await asyncio.wait_for(closed.wait(), timeout=1)
+    with pytest.raises(TimeoutError) as exc:
+        await anext(stream)
+    assert exc.value is failure
+    assert closed.is_set()

@@ -11097,3 +11097,12 @@ When the Codex client supplies an unanchored request on a different physical ups
 - **THEN** every output SHALL follow its matching call with the same ID and type, with no duplicate calls, duplicate results, or missing results
 - **AND** results for distinct parallel calls MAY arrive in either order
 - **AND** an anchored delta may still return the result of an upstream-owned tool call
+
+### Requirement: SSE keepalives propagate upstream read timeouts
+
+The SSE keepalive iterator SHALL emit a heartbeat only when its own wait interval expires. It SHALL propagate a timeout raised by the upstream iterator, including after a previous heartbeat, and finalize the iterator.
+
+#### Scenario: The source times out after a heartbeat
+
+- **WHEN** a pending source read fails with a timeout while the consumer processes a heartbeat
+- **THEN** the next read surfaces that upstream error and closes the iterator
