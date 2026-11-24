@@ -1559,6 +1559,8 @@ def _http_bridge_session_supports_service_tier(
 @dataclass(slots=True)
 class _WebSocketContinuityState:
     last_completed_connection_id: str | None = None
+    last_completed_output_count: int = 0
+    last_completed_output_fingerprint: str | None = None
     last_completed_input_count: int = 0
     last_completed_response_id: str | None = None
     last_completed_input_prefix_fingerprint: str | None = None

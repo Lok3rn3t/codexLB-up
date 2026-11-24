@@ -373,3 +373,7 @@ existing intact-input contract. Provenance and route regression evidence are in
 ### Selected WebSocket anchor coverage
 
 Proxy injection inherits context coverage from the selected completion. Coverage is snapshotted before capability routing and API-key reservation, so concurrent completion cannot change the meaning of an already selected anchor. A client-anchored delta followed by proxy injection remains incomplete for later explicit-anchor replay; the native client receives its canonical recovery error and can resend retained history.
+
+### Reconnect with complete client history
+
+A client can open a new socket on the same account and send the entire conversation without a parent ID. The direct WebSocket path compares the saved input prefix and a SHA-256 digest of the actual completed output. A portable match retains the entire input, including matched parallel tool results. For example, a user question, its verified assistant reply and the next question can go to the new socket together. A file citation, a partial history or a caller-supplied parent keeps its ownership constraints. The proxy records a digest and item count for this check. [WebSocket continuation](https://developers.openai.com/api/docs/guides/websocket-mode)

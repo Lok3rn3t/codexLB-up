@@ -596,7 +596,12 @@ def _normalize_assistant_content_part(part: JsonValue) -> JsonValue:
         return part
     text = _extract_text_content_part(part, _ASSISTANT_TEXT_PART_TYPES)
     if text is not None:
-        return {"type": "output_text", "text": text}
+        output: dict[str, JsonValue] = {"type": "output_text", "text": text}
+        if part.get("type") == "output_text":
+            for key in ("annotations", "logprobs"):
+                if isinstance(value := part.get(key), list):
+                    output[key] = value
+        return output
     return part
 
 

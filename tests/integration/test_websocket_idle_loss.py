@@ -24,6 +24,7 @@ from tests.integration.test_proxy_websocket_responses import (
     _receive_until_terminal,
     _SequencedUpstreamWebSocket,
     _websocket_settings,
+    _ws_event,
 )
 
 pytestmark = [pytest.mark.integration, pytest.mark.timeout(20)]
@@ -243,3 +244,81 @@ def test_idle_loss_during_request_preparation_never_dispatches_the_late_turn(app
             assert not states[1].response_create_gate_acquired
             client.portal.call(assert_reservation_released)
     assert fixture.released_leases == ["retained-test-0"]
+
+
+@pytest.mark.parametrize(
+    "resend",
+    [
+        "complete",
+        "empty_metadata",
+        "file_annotation",
+        "parallel_results",
+        "missing_reply",
+        "changed_reply",
+        "client_anchor",
+        "same_socket",
+    ],
+)
+def test_reconnect_uses_portable_client_history_without_old_socket_anchor(app_instance, monkeypatch, resend):
+    completion = _completed_first_turn_upstream_batch(_PARENT)
+    assert completion[-1].text is not None
+    event = json.loads(completion[-1].text)
+    output = event["response"]["output"]
+    if resend in {"empty_metadata", "file_annotation"}:
+        output[0]["content"][0].update(annotations=[], logprobs=[])
+        if resend == "file_annotation":
+            output[0]["content"][0]["annotations"].append({"type": "file_citation", "file_id": "file_owner"})
+    if resend == "parallel_results":
+        output = [
+            {"type": "function_call", "call_id": ident, "name": "echo", "arguments": "{}"} for ident in ("a", "b")
+        ]
+        event["response"]["output"] = output
+        for index, call in enumerate(output):
+            completion.insert(-1, _ws_event({"type": "response.output_item.done", "output_index": index, "item": call}))
+    completion[-1] = _ws_event(event)
+    first = _SequencedUpstreamWebSocket(
+        [],
+        deferred_message_batches=[
+            completion,
+            _completed_first_turn_upstream_batch("resp_next"),
+        ],
+    )
+    replacement = _SequencedUpstreamWebSocket(
+        [], deferred_message_batches=[_completed_first_turn_upstream_batch("resp_next")]
+    )
+    fixture = _IdleSocketFixture(monkeypatch, [first, replacement])
+    answer = {
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": "changed" if resend == "changed_reply" else "hi"}],
+    }
+    items = [_FIRST, _DELTA] if resend == "missing_reply" else [_FIRST, answer, _DELTA]
+    if resend in {"empty_metadata", "file_annotation"}:
+        items = [_FIRST, *output, _DELTA]
+    elif resend == "parallel_results":
+        results = [{"type": "function_call_output", "call_id": ident, "output": "ok"} for ident in ("b", "a")]
+        items = [_FIRST, *output, *results]
+    parent = _PARENT if resend == "client_anchor" else None
+    if parent:
+        items = [_DELTA]
+    with TestClient(app_instance) as client:
+        assert client.portal is not None
+        client.portal.call(fixture.prepare)
+        with client.websocket_connect(_PATH, headers=fixture.headers()) as ws:
+            _complete(ws, _create([_FIRST]), _PARENT)
+            if resend == "same_socket":
+                _complete(ws, _create(items), "resp_next")
+        if resend != "same_socket":
+            with client.websocket_connect(_PATH, headers=fixture.headers()) as ws:
+                _complete(ws, _create(items, parent=parent), "resp_next")
+    if resend == "same_socket":
+        sent = json.loads(first.sent_text[1])
+        assert sent["previous_response_id"] == _PARENT
+        assert sent["input"] == [answer, _DELTA]
+    else:
+        sent = json.loads(replacement.sent_text[0])
+        if resend in {"complete", "empty_metadata", "parallel_results"}:
+            assert not sent.get("previous_response_id")
+            assert sent["input"] == items
+        else:
+            assert sent["previous_response_id"] == _PARENT
+            assert sent["input"] == (items if parent else items[1:])
