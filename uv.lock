@@ -662,7 +662,7 @@ wheels = [
 
 [[package]]
 name = "codexlb-up"
-version = "1.26.0-beta.3"
+version = "1.26.0-beta.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
