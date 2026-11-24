@@ -1334,3 +1334,14 @@ def test_mutation_an_undeclared_extra_file_fails_the_sync_gate(
 
     with pytest.raises(AssertionError):
         gate.test_files_on_disk_and_provenance_rows_agree_in_both_directions()
+
+
+@pytest.mark.parametrize("field", ["annotations", "logprobs"])
+def test_output_metadata_fixture_preserves_only_empty_arrays(field: str) -> None:
+    part: dict[str, Any] = {"type": "output_text", "text": "answer", field: []}
+    body = {"model": "gpt-5", "input": [{"type": "message", "role": "assistant", "content": [part]}]}
+    rebuilt, _ = codex_body_sanitize.sanitize_body(body)
+    assert rebuilt["input"][0]["content"][0][field] == []
+    part[field] = [{"unreviewed": "provider content"}]
+    with pytest.raises(codex_body_sanitize.UnsanitisableBodyError, match="empty metadata array"):
+        codex_body_sanitize.sanitize_body(body)

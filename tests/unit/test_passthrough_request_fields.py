@@ -2,8 +2,8 @@
 pydantic's deep ``JsonValue`` validation.
 
 The golden corpus in ``tests/fixtures/passthrough_request_corpus.json`` was
-frozen from the pre-change models (deep-validated, deep-dumped) so the
-forwarded bytes are proven identical, and the shape checks that pydantic's
+frozen from the original deep-validated models, with subsequent wire changes
+recorded explicitly (including Codex output-text metadata). The shape checks that pydantic's
 ``list`` validation used to provide are pinned at field level so the error
 ``param`` still names the offending field.
 """
@@ -33,7 +33,7 @@ from app.modules.proxy.request_policy import normalize_responses_request_payload
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CORPUS_PATH = _REPO_ROOT / "tests" / "fixtures" / "passthrough_request_corpus.json"
-_CORPUS: list[dict[str, Any]] = json.loads(_CORPUS_PATH.read_text())
+_CORPUS: list[dict[str, Any]] = json.loads(_CORPUS_PATH.read_text(encoding="utf-8"))
 _BAD_ARRAYS: list[JsonValue] = [None, "abc", 123, {}]
 
 
@@ -58,7 +58,7 @@ def _build(case: dict[str, Any]) -> BaseModel:
 
 
 @pytest.mark.parametrize("case", _CORPUS, ids=[case["name"] for case in _CORPUS])
-def test_forwarded_payload_bytes_match_pre_change_golden(case: dict[str, Any]) -> None:
+def test_forwarded_payload_bytes_match_golden(case: dict[str, Any]) -> None:
     request = _build(case)
     to_payload = getattr(request, "to_payload")
     assert _dumps(to_payload()) == case["expected_to_payload"]
