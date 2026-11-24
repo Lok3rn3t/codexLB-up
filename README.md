@@ -64,7 +64,7 @@ see [Getting started](https://soju06.github.io/codex-lb/getting-started/).
 ### Migrating from the original codex-lb
 
 For `codex-lb==1.25.0b9` (`ghcr.io/soju06/codex-lb:1.25.0-beta.9`),
-replace the application image with `ghcr.io/lok3rn3t/codexlb-up:1.25.0`.
+replace the application image with `ghcr.io/lok3rn3t/codexlb-up:1.27.0`.
 Stop the old container and back up the entire data directory first. Keep the
 existing mounts, `encryption.key`, environment, ports, and networks: these retain
 your accounts, dashboard login, API keys, settings, and history. Normal startup
