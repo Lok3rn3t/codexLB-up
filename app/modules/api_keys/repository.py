@@ -69,6 +69,7 @@ class UsageReservationData:
     model: str
     status: str
     items: list[UsageReservationItemData]
+    created_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -753,6 +754,7 @@ class ApiKeysRepository:
         key_id: str,
         model: str,
         items: list[UsageReservationItemData],
+        created_at: datetime | None = None,
     ) -> None:
         # Reservation accounting keeps full commit durability. On external/HA
         # PostgreSQL a server failover does not kill in-flight application
@@ -763,6 +765,7 @@ class ApiKeysRepository:
             id=reservation_id,
             api_key_id=key_id,
             model=model,
+            created_at=created_at or utcnow(),
             status="reserved",
         )
         self._session.add(reservation)
@@ -791,6 +794,7 @@ class ApiKeysRepository:
             api_key_id=row.api_key_id,
             model=row.model,
             status=row.status,
+            created_at=row.created_at,
             items=[
                 UsageReservationItemData(
                     limit_id=item.limit_id,

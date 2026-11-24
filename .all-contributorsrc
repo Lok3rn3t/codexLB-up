@@ -11,6 +11,35 @@
   "commitConvention": "angular",
   "contributors": [
     {
+      "login": "hanmin6",
+      "name": "hanmin6",
+      "avatar_url": "https://avatars.githubusercontent.com/u/226948540?v=4",
+      "profile": "https://github.com/hanmin6",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "SAY-5",
+      "name": "Sai Asish Y",
+      "avatar_url": "https://avatars.githubusercontent.com/u/240962040?v=4",
+      "profile": "https://github.com/SAY-5",
+      "contributions": [
+        "test"
+      ]
+    },
+    {
+      "login": "luisleo526",
+      "name": "luisleo526",
+      "avatar_url": "https://avatars.githubusercontent.com/u/20812494?v=4",
+      "profile": "https://github.com/luisleo526",
+      "contributions": [
+        "code",
+        "test",
+        "doc"
+      ]
+    },
+    {
       "login": "Lok3rn3t",
       "name": "Lok3rn3t",
       "avatar_url": "https://avatars.githubusercontent.com/u/71749209?v=4",

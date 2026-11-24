@@ -20,7 +20,7 @@ from app.core.clients.thread_cache_identity import (
 )
 from app.core.usage.pricing import (
     UsageTokens,
-    calculate_cost_from_usage,
+    calculate_cost_microdollars_from_usage,
     get_pricing_for_model,
 )
 from app.core.usage.types import TokenUsageCoverage, UsageWindowRow
@@ -165,6 +165,7 @@ class ApiKeysRepositoryProtocol(Protocol):
         key_id: str,
         model: str,
         items: list[UsageReservationItemData],
+        created_at: datetime,
     ) -> None: ...
 
     async def get_usage_reservation(self, reservation_id: str) -> UsageReservationData | None: ...
@@ -951,6 +952,7 @@ class ApiKeysService:
                         request_model=request_model,
                         request_service_tier=request_service_tier,
                         request_usage_budget=normalized_usage_budget,
+                        priced_at=now,
                     )
                     if reserve_delta > 0:
                         result = await self._repository.try_reserve_usage(
@@ -1003,6 +1005,7 @@ class ApiKeysService:
                         key_id=key_id,
                         model=request_model or "",
                         items=reservation_items,
+                        created_at=now,
                     )
                     await self._repository.commit()
             except Exception:
@@ -1135,6 +1138,7 @@ class ApiKeysService:
                     effective_output_tokens,
                     effective_cached_input_tokens,
                     service_tier,
+                    priced_at=reservation.created_at,
                 )
             )
 
@@ -1740,6 +1744,7 @@ def _reserve_delta_for_limit(
     request_model: str | None,
     request_service_tier: str | None,
     request_usage_budget: ApiKeyRequestUsageBudget,
+    priced_at: datetime,
 ) -> int:
     remaining = limit.max_value - limit.current_value
     if remaining <= 0:
@@ -1749,6 +1754,7 @@ def _reserve_delta_for_limit(
         request_model=request_model,
         request_service_tier=request_service_tier,
         request_usage_budget=request_usage_budget,
+        priced_at=priced_at,
     )
     return min(remaining, budget)
 
@@ -1783,6 +1789,7 @@ def _reserve_budget_for_limit_type(
     request_model: str | None,
     request_service_tier: str | None,
     request_usage_budget: ApiKeyRequestUsageBudget,
+    priced_at: datetime,
 ) -> int:
     input_tokens = request_usage_budget.input_tokens or 0
     output_tokens = request_usage_budget.output_tokens or 0
@@ -1796,6 +1803,7 @@ def _reserve_budget_for_limit_type(
         return _reserve_cost_budget_microdollars(
             request_model,
             request_service_tier,
+            priced_at=priced_at,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
         )
@@ -1810,6 +1818,7 @@ def _reserve_cost_budget_microdollars(
     *,
     input_tokens: int,
     output_tokens: int,
+    priced_at: datetime,
 ) -> int:
     if not model:
         return _unknown_model_reserve_cost_budget_microdollars(input_tokens=input_tokens, output_tokens=output_tokens)
@@ -1819,6 +1828,7 @@ def _reserve_cost_budget_microdollars(
         output_tokens,
         0,
         service_tier,
+        priced_at=priced_at,
     )
     return (
         cost_microdollars
@@ -2075,8 +2085,10 @@ def _calculate_cost_microdollars(
     output_tokens: int,
     cached_input_tokens: int,
     service_tier: str | None = None,
+    *,
+    priced_at: datetime | None = None,
 ) -> int:
-    resolved = get_pricing_for_model(model)
+    resolved = get_pricing_for_model(model, priced_at=priced_at)
     if resolved is None:
         return 0
     _, price = resolved
@@ -2085,10 +2097,7 @@ def _calculate_cost_microdollars(
         output_tokens=float(output_tokens),
         cached_input_tokens=float(cached_input_tokens),
     )
-    cost_usd = calculate_cost_from_usage(usage, price, service_tier=service_tier)
-    if cost_usd is None:
-        return 0
-    return int(cost_usd * 1_000_000)
+    return calculate_cost_microdollars_from_usage(usage, price, service_tier=service_tier) or 0
 
 
 def _build_api_key_trends(

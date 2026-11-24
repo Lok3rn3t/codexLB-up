@@ -1840,6 +1840,9 @@ class _WebSocketMixin:
                                     prohibit_fast_mode=prohibit_fast_mode,
                                     api_key=api_key,
                                     continuity_state=continuity_state,
+                                    upstream_connection_id=upstream_control.connection_id
+                                    if upstream_control is not None and not upstream_control.reconnect_requested
+                                    else None,
                                     useragent=useragent,
                                     useragent_group=useragent_group,
                                     conversation_id=conversation_id,
@@ -1881,6 +1884,9 @@ class _WebSocketMixin:
                                         prohibit_fast_mode=prohibit_fast_mode,
                                         api_key=api_key,
                                         continuity_state=continuity_state,
+                                        upstream_connection_id=upstream_control.connection_id
+                                        if upstream_control is not None and not upstream_control.reconnect_requested
+                                        else None,
                                         useragent=useragent,
                                         useragent_group=useragent_group,
                                         conversation_id=conversation_id,
@@ -3182,6 +3188,7 @@ class _WebSocketMixin:
         api_key: ApiKeyData | None,
         prohibit_fast_mode: bool = False,
         continuity_state: "_WebSocketContinuityState | None" = None,
+        upstream_connection_id: str | None = None,
         useragent: str | None = None,
         useragent_group: str | None = None,
         conversation_id: str | None = None,
@@ -3326,6 +3333,7 @@ class _WebSocketMixin:
                 responses_payload=responses_payload,
                 codex_session_affinity=codex_session_affinity,
                 api_key_id=refreshed_api_key.id if refreshed_api_key is not None else None,
+                upstream_connection_id=upstream_connection_id,
             )
         if session_anchor is not None:
             # Keep the coverage of this selected completion across admission
@@ -6137,10 +6145,12 @@ class _WebSocketMixin:
         )
         if event_type == "response.completed" and continuity_state is not None and not completed_empty_prewarm:
             continuity_state.last_completed_connection_id = upstream_control.connection_id
+            completed_response = payload.get("response") if payload is not None else None
             _record_websocket_continuity_completion(
                 continuity_state,
                 request_state=request_state,
                 response_id=response_id,
+                output=completed_response.get("output") if isinstance(completed_response, dict) else None,
             )
 
         if request_state is not None and event_type in {"response.failed", "error"}:

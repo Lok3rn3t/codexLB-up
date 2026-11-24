@@ -350,11 +350,13 @@ class _FakeApiKeysRepository(ApiKeysRepositoryProtocol):
         key_id: str,
         model: str,
         items: list[UsageReservationItemData],
+        created_at: datetime,
     ) -> None:
         self._reservations[reservation_id] = UsageReservationData(
             reservation_id=reservation_id,
             api_key_id=key_id,
             model=model,
+            created_at=created_at,
             status="reserved",
             items=[
                 UsageReservationItemData(
@@ -376,6 +378,7 @@ class _FakeApiKeysRepository(ApiKeysRepositoryProtocol):
             reservation_id=reservation.reservation_id,
             api_key_id=reservation.api_key_id,
             model=reservation.model,
+            created_at=reservation.created_at,
             status=reservation.status,
             items=[
                 UsageReservationItemData(
@@ -403,6 +406,7 @@ class _FakeApiKeysRepository(ApiKeysRepositoryProtocol):
             reservation_id=reservation.reservation_id,
             api_key_id=reservation.api_key_id,
             model=reservation.model,
+            created_at=reservation.created_at,
             status=new_status,
             items=reservation.items,
         )
@@ -448,6 +452,7 @@ class _FakeApiKeysRepository(ApiKeysRepositoryProtocol):
             reservation_id=reservation.reservation_id,
             api_key_id=reservation.api_key_id,
             model=reservation.model,
+            created_at=reservation.created_at,
             status=reservation.status,
             items=updated_items,
         )
@@ -469,6 +474,7 @@ class _FakeApiKeysRepository(ApiKeysRepositoryProtocol):
             reservation_id=reservation.reservation_id,
             api_key_id=reservation.api_key_id,
             model=reservation.model,
+            created_at=reservation.created_at,
             status=status,
             items=reservation.items,
         )
@@ -1710,6 +1716,7 @@ async def test_enforce_limits_retries_sqlite_busy_reservation_commit(monkeypatch
             key_id: str,
             model: str,
             items: list[UsageReservationItemData],
+            created_at: datetime,
         ) -> None:
             self.create_usage_reservation_calls += 1
             if self.create_usage_reservation_calls < 3:
@@ -1718,6 +1725,7 @@ async def test_enforce_limits_retries_sqlite_busy_reservation_commit(monkeypatch
                 reservation_id,
                 key_id=key_id,
                 model=model,
+                created_at=created_at,
                 items=items,
             )
 
@@ -2236,16 +2244,19 @@ async def test_record_usage_cost_limit_uses_flex_service_tier_pricing() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("model", "expected_reserved_microdollars", "expected_final_microdollars"),
+    ("model", "budget_tokens", "expected_reserved_microdollars", "expected_final_microdollars"),
     [
-        ("gpt-5.6", 286_720, 31_000_000),
-        ("gpt-5.6-sol-snapshot", 286_720, 31_000_000),
-        ("gpt-5.6-terra-snapshot", 114_688, 12_400_000),
-        ("gpt-5.6-luna-snapshot", 11_468, 1_240_000),
+        ("gpt-5.6", 8_192, 286_720, 31_000_000),
+        ("gpt-5.6-sol-snapshot", 8_192, 286_720, 31_000_000),
+        ("gpt-5.6-terra-snapshot", 8_192, 114_688, 12_400_000),
+        ("gpt-5.6-luna-snapshot", 8_192, 11_468, 1_240_000),
+        ("gpt-6.2-astra-snapshot", 5_000, 240_000, 41_600_000),
+        ("gpt-6.2-sol-2026-11-21", 5_000, 60_000, 10_400_000),
     ],
 )
-async def test_usage_reservation_uses_gpt_5_6_personality_pricing(
+async def test_usage_reservation_uses_personality_pricing(
     model: str,
+    budget_tokens: int,
     expected_reserved_microdollars: int,
     expected_final_microdollars: int,
     monkeypatch: pytest.MonkeyPatch,
@@ -2268,7 +2279,7 @@ async def test_usage_reservation_uses_gpt_5_6_personality_pricing(
     reservation = await service.enforce_limits_for_request(
         created.id,
         request_model=model,
-        request_usage_budget=ApiKeyRequestUsageBudget(input_tokens=8_192, output_tokens=8_192),
+        request_usage_budget=ApiKeyRequestUsageBudget(input_tokens=budget_tokens, output_tokens=budget_tokens),
     )
     assert reservation is not None
 
@@ -2839,3 +2850,35 @@ async def test_touch_usage_reservation_reports_the_exhausted_lock_budget(
         and "sqlite_errorname=SQLITE_BUSY" in message
         for message in warnings
     )
+
+
+@pytest.mark.asyncio
+async def test_ultrafast_reservation_settles_at_admission_price_across_promotion(monkeypatch):
+    started = datetime(2027, 3, 1, 7, 59, 59)
+    monkeypatch.setattr("app.modules.api_keys.service.utcnow", lambda: started)
+    repo = _FakeApiKeysRepository()
+    service = ApiKeysService(repo)
+    key = await service.create_key(
+        ApiKeyCreateData(
+            name="promo",
+            allowed_models=None,
+            expires_at=None,
+            limits=[LimitRuleInput(limit_type="cost_usd", limit_window="weekly", max_value=200_000_000)],
+        )
+    )
+    reservation = await service.enforce_limits_for_request(
+        key.id,
+        request_model="gpt-6.2-sol",
+        request_service_tier="ultrafast",
+        request_usage_budget=ApiKeyRequestUsageBudget(input_tokens=0, output_tokens=100),
+    )
+    assert reservation is not None
+    [limit] = await repo.get_limits_by_key(key.id)
+    assert limit.current_value == 3_000
+    ended = datetime(2027, 3, 1, 8, 0, 0)
+    monkeypatch.setattr("app.modules.api_keys.service.utcnow", lambda: ended)
+    monkeypatch.setattr("app.core.usage.pricing.utcnow", lambda: ended)
+    await service.finalize_usage_reservation(
+        reservation.reservation_id, model="gpt-6.2-sol", input_tokens=0, output_tokens=10, service_tier="ultrafast"
+    )
+    assert limit.current_value == 300

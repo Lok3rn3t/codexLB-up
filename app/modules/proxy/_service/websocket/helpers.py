@@ -358,7 +358,11 @@ from app.modules.proxy.http_bridge_forwarding import (
 from app.modules.proxy.http_bridge_forwarding import (
     OwnerForwardRelayFailure as OwnerForwardRelayFailure,
 )
-from app.modules.proxy.replay_safety import responses_payload_is_account_neutral_fresh_replay
+from app.modules.proxy.replay_safety import (
+    responses_input_suffix_matches_pending_tool_calls,
+    responses_input_suffix_retains_prior_output,
+    responses_payload_is_account_neutral_fresh_replay,
+)
 from app.modules.proxy.selection_errors import USAGE_LIMIT_REACHED
 
 
@@ -512,11 +516,16 @@ def _websocket_request_text_is_account_neutral_fresh_replay(request_text: str | 
         return False
     if not isinstance(payload, dict):
         return False
+    return _websocket_payload_is_account_neutral_fresh_replay(cast(dict[str, JsonValue], payload))
+
+
+def _websocket_payload_is_account_neutral_fresh_replay(payload: Mapping[str, JsonValue]) -> bool:
     event_type = payload.get("type")
     if event_type is not None and event_type != "response.create":
         return False
-    payload.pop("type", None)
-    return responses_payload_is_account_neutral_fresh_replay(cast(dict[str, JsonValue], payload))
+    if "type" in payload:
+        payload = {key: value for key, value in payload.items() if key != "type"}
+    return responses_payload_is_account_neutral_fresh_replay(payload)
 
 
 def _bind_websocket_request_dispatch_owner(
@@ -703,11 +712,25 @@ def _retire_websocket_continuity_anchor(continuity_state: _WebSocketContinuitySt
     """Drop the completed-response anchor and the state that only exists for it."""
     continuity_state.last_completed_response_id = None
     continuity_state.last_completed_connection_id = None
+    continuity_state.last_completed_output_count = 0
+    continuity_state.last_completed_output_fingerprint = None
     continuity_state.last_completed_input_count = 0
     continuity_state.last_completed_input_prefix_fingerprint = None
     continuity_state.last_completed_input_covers_context = False
     continuity_state.last_pending_function_call_ids = []
     continuity_state.last_pending_tool_call_types = {}
+
+
+def _websocket_completion_fingerprint(items: list[JsonValue]) -> str:
+    # Responses message inputs may omit the message discriminator. Keep every
+    # content field, including tool call IDs and the order of parallel outputs.
+    normalized = [
+        {**item, "type": "message"}
+        if isinstance(item, dict) and "type" not in item and item.get("role") == "assistant"
+        else item
+        for item in items
+    ]
+    return _facade()._fingerprint_input_items(normalized)
 
 
 def _websocket_continuity_anchor_for_payload(
@@ -716,6 +739,7 @@ def _websocket_continuity_anchor_for_payload(
     responses_payload: ResponsesRequest,
     codex_session_affinity: bool,
     api_key_id: str | None = None,
+    upstream_connection_id: str | None = None,
 ) -> _WebSocketContinuityAnchor | None:
     """Select a matching session anchor, retiring any known upstream rejection."""
     if continuity_state is None or not codex_session_affinity:
@@ -744,6 +768,30 @@ def _websocket_continuity_anchor_for_payload(
         stored_fingerprint=continuity_state.last_completed_input_prefix_fingerprint,
     ):
         return None
+    # An account can outlive its upstream socket's response cache. Preserve a
+    # portable full resend only when it contains the actual completed output.
+    if (
+        continuity_state.last_completed_connection_id is not None
+        and continuity_state.last_completed_connection_id != upstream_connection_id
+        and continuity_state.last_completed_input_covers_context
+        and continuity_state.last_completed_output_fingerprint is not None
+        and isinstance(responses_payload.input, list)
+    ):
+        items = cast(list[JsonValue], responses_payload.input)
+        end = stored_count + continuity_state.last_completed_output_count
+        if (
+            end < len(items)
+            and _websocket_completion_fingerprint(items[stored_count:end])
+            == continuity_state.last_completed_output_fingerprint
+            and (
+                responses_input_suffix_retains_prior_output(items, stored_count=stored_count)
+                or responses_input_suffix_matches_pending_tool_calls(
+                    items, stored_count=stored_count, pending_tool_calls=continuity_state.last_pending_tool_call_types
+                )
+            )
+            and _websocket_payload_is_account_neutral_fresh_replay(responses_payload.to_replay_safety_payload())
+        ):
+            return None
     return _WebSocketContinuityAnchor(
         previous_response_id=previous_response_id,
         stored_input_item_count=stored_count,
@@ -759,23 +807,27 @@ _WEBSOCKET_TOOL_CALL_ITEM_TYPES = frozenset(_WEBSOCKET_TOOL_CALL_ITEM_TYPES_BY_O
 
 
 def _websocket_input_items_are_self_contained_fresh_replay(input_items: list[JsonValue]) -> bool:
-    seen_call_ids_by_type: dict[str, set[str]] = {item_type: set() for item_type in _WEBSOCKET_TOOL_CALL_ITEM_TYPES}
+    seen: set[str] = set()
+    pending: dict[str, str] = {}
     for item in input_items:
         if not isinstance(item, dict):
             continue
         item_type = _websocket_input_item_type(item)
-        call_id_value = item.get("call_id")
-        call_id = call_id_value if isinstance(call_id_value, str) and call_id_value else None
-        if item_type in _WEBSOCKET_TOOL_CALL_ITEM_TYPES:
-            if call_id is not None:
-                seen_call_ids_by_type[item_type].add(call_id)
+        expected_call_type = _WEBSOCKET_TOOL_CALL_ITEM_TYPES_BY_OUTPUT_TYPE.get(item_type or "")
+        if item_type not in _WEBSOCKET_TOOL_CALL_ITEM_TYPES and expected_call_type is None:
             continue
-        call_item_type = _WEBSOCKET_TOOL_CALL_ITEM_TYPES_BY_OUTPUT_TYPE.get(item_type or "")
-        if call_item_type is None:
-            continue
-        if call_id is None or call_id not in seen_call_ids_by_type[call_item_type]:
+        call_id = item.get("call_id")
+        if not isinstance(call_id, str) or not call_id.strip():
             return False
-    return True
+        if expected_call_type is not None:
+            if pending.pop(call_id, None) != expected_call_type:
+                return False
+        elif item_type is not None:
+            if call_id in seen:
+                return False
+            seen.add(call_id)
+            pending[call_id] = item_type
+    return not pending
 
 
 def _websocket_client_previous_response_full_resend_is_retry_safe(
@@ -823,6 +875,7 @@ def _record_websocket_continuity_completion(
     *,
     request_state: _WebSocketRequestState,
     response_id: str | None,
+    output: JsonValue = None,
 ) -> None:
     """Record completed context and pending tools, or clear an absent response anchor."""
     if response_id is None:
@@ -836,6 +889,15 @@ def _record_websocket_continuity_completion(
     # is cleared rather than left stale when the completed turn cannot
     # provide one.
     continuity_state.last_completed_response_id = response_id
+    completed_output = (
+        output
+        if isinstance(output, list) and request_state.input_covers_anchor_context and request_state.input_item_count > 0
+        else []
+    )
+    continuity_state.last_completed_output_count = len(completed_output)
+    continuity_state.last_completed_output_fingerprint = (
+        _websocket_completion_fingerprint(completed_output) if completed_output else None
+    )
     continuity_state.last_completed_input_covers_context = request_state.input_covers_anchor_context
     if request_state.input_item_count > 0 and request_state.input_full_fingerprint is not None:
         continuity_state.last_completed_input_count = request_state.input_item_count

@@ -26792,6 +26792,47 @@ async def test_prepare_websocket_response_create_request_injects_anchor_for_code
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "history_kind", ["missing_call", "missing_result", "duplicate_call", "duplicate_result", "wrong_type", "parallel"]
+)
+async def test_direct_websocket_drops_only_invalid_anchorless_tool_replay(monkeypatch, history_kind):
+    service = proxy_service.ProxyService(_repo_factory(_RequestLogsRecorder()))
+    monkeypatch.setattr(service, "_reserve_websocket_api_key_usage", AsyncMock(return_value=None))
+    prefix = [{"role": "user", "content": "use tools"}]
+    call = {"type": "function_call", "name": "echo", "arguments": "{}", "call_id": "a"}
+    result = {"type": "function_call_output", "call_id": "a", "output": "ok"}
+    second = {"type": "custom_tool_call", "name": "write", "input": "data", "call_id": "b"}
+    second_result = {"type": "custom_tool_call_output", "call_id": "b", "output": "ok"}
+    history = {
+        "missing_call": [result],
+        "missing_result": [call],
+        "duplicate_call": [call, call, result],
+        "duplicate_result": [call, result, result],
+        "wrong_type": [call, {**second_result, "call_id": "a"}],
+        "parallel": [call, second, second_result, result],
+    }[history_kind]
+    state = proxy_service._WebSocketContinuityState(
+        last_completed_response_id="resp_owner",
+        last_completed_input_count=1,
+        last_completed_input_covers_context=True,
+        last_completed_input_prefix_fingerprint=proxy_service._fingerprint_input_items(prefix),
+    )
+    prepared = await service._prepare_websocket_response_create_request(
+        {"type": "response.create", "model": "gpt-5.4", "input": [*prefix, *history]},
+        headers={"session_id": "tool-pairs"},
+        codex_session_affinity=True,
+        openai_cache_affinity=True,
+        sticky_threads_enabled=False,
+        openai_cache_affinity_max_age_seconds=300,
+        api_key=None,
+        continuity_state=state,
+    )
+    assert json.loads(prepared.text_data)["previous_response_id"] == "resp_owner"
+    assert prepared.request_state.fresh_upstream_request_is_retry_safe == (history_kind == "parallel")
+    assert (prepared.request_state.fresh_upstream_request_text is not None) == (history_kind == "parallel")
+
+
+@pytest.mark.asyncio
 async def test_prepare_websocket_response_create_request_retires_injected_anchor_remembered_stale(monkeypatch):
     """Resend full client context and clear continuity when the injected anchor is stale."""
     request_logs = _RequestLogsRecorder()

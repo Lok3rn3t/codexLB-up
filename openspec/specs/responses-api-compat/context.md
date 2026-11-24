@@ -85,10 +85,11 @@ normalizes it to `priority` before forwarding.
 
 ### Ultrafast Processing
 
-The [OpenAI Responses API reference](https://developers.openai.com/api/reference/resources/responses/methods/create)
-documents `ultrafast` as an access-controlled processing tier currently
-available for `gpt-5.6-sol`. codex-lb forwards this canonical value unchanged;
-it does not grant Ultrafast access by itself.
+Set `service_tier` to `ultrafast` on each Responses request or WebSocket
+`response.create`. OpenAI publishes Ultrafast pricing for GPT-6.2 Astra,
+GPT-6.2 Sol, GPT-6 Astra and GPT-6.1 Sol. The request log uses the tier
+reported by upstream when it is available.
+[OpenAI Ultrafast guide](https://developers.openai.com/api/docs/guides/ultrafast-mode)
 
 Account eligibility comes from live or retained per-account upstream catalog
 metadata. The bundled bootstrap catalog deliberately does not advertise
@@ -100,7 +101,7 @@ Send a Responses request with:
 
 ```json
 {
-  "model": "gpt-5.6-sol",
+  "model": "gpt-6.2-sol",
   "input": "Summarize the change.",
   "service_tier": "ultrafast"
 }
@@ -372,3 +373,7 @@ existing intact-input contract. Provenance and route regression evidence are in
 ### Selected WebSocket anchor coverage
 
 Proxy injection inherits context coverage from the selected completion. Coverage is snapshotted before capability routing and API-key reservation, so concurrent completion cannot change the meaning of an already selected anchor. A client-anchored delta followed by proxy injection remains incomplete for later explicit-anchor replay; the native client receives its canonical recovery error and can resend retained history.
+
+### Reconnect with complete client history
+
+A client can open a new socket on the same account and send the entire conversation without a parent ID. The direct WebSocket path compares the saved input prefix and a SHA-256 digest of the actual completed output. A portable match retains the entire input, including matched parallel tool results. For example, a user question, its verified assistant reply and the next question can go to the new socket together. A file citation, a partial history or a caller-supplied parent keeps its ownership constraints. The proxy records a digest and item count for this check. [WebSocket continuation](https://developers.openai.com/api/docs/guides/websocket-mode)

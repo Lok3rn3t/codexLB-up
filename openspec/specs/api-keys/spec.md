@@ -1460,6 +1460,27 @@ Batch rates and cache-write rates MUST NOT be used without corresponding proxy r
 - **WHEN** the requested model is `gpt-5.6-luna-2026-07-13`
 - **THEN** cost accounting resolves it to the `gpt-5.6-luna` price entry
 
+### Requirement: GPT-6.2 Astra and Sol have bundled usage prices
+
+When no upstream-metadata catalog price takes precedence, API-key usage, request logs, reservations, and aggregates MUST use the bundled rates below. Fast and priority MUST use Fast rates and flex MUST use Standard rates. Above 272,000 input tokens, long-context rates MUST apply to the entire request. Otherwise short-context rates MUST apply. Without an exact price, versioned and snapshot aliases MUST use the canonical entry.
+
+#### Scenario: Apply the bundled rates
+
+- **GIVEN** a model and tier in the table
+- **WHEN** bundled pricing applies
+- **THEN** the input, cached input, and output rates in USD per million tokens are as follows
+
+| Model | Standard short | Standard long | Fast short | Fast long |
+| --- | --- | --- | --- | --- |
+| `gpt-6.2-astra` | 8 / 0.40 / 40 | 16 / 0.80 / 60 | 16 / 0.80 / 80 | 32 / 1.60 / 120 |
+| `gpt-6.2-sol` | 2 / 0.10 / 10 | 4 / 0.20 / 15 | 4 / 0.20 / 20 | 8 / 0.40 / 30 |
+
+#### Scenario: A dated Astra snapshot uses Fast long-context rates
+
+- **GIVEN** the bundled fallback is active
+- **WHEN** `gpt-6.2-astra-2026-11-21` is requested with `fast`, 272,001 input tokens including 100,000 cached tokens, and 100,000 output tokens
+- **THEN** its token cost is `$17.664032`
+
 ### Requirement: API key last-used tracking is write-behind and coalesced
 
 The system SHALL track `api_keys.last_used_at` through a process-local write-behind coalescer instead of writing the column inside each reservation-settlement transaction. Settlement paths MUST record the key's used-at timestamp in memory (keyed by API key id, keeping the per-key maximum), and a replica-local periodic flusher (constant 30-second interval, not leader-gated) MUST fold all pending touches into the database in a single transaction per flush. Every flushed write MUST apply monotonic greatest-wins semantics — the stored `last_used_at` is only advanced, never regressed, even when multiple replicas flush out of order (`GREATEST(coalesce(last_used_at, epoch), :new)` semantics; the dialect-portable guarded UPDATE `WHERE last_used_at IS NULL OR last_used_at < :new` is an acceptable implementation on both PostgreSQL and SQLite). Graceful shutdown MUST flush every recorded touch: the flusher's stop sequence MUST switch the coalescer to shutdown write-through mode before performing the final flush, so a touch recorded after (or concurrently with) the final flush — for example by a settlement task that outlived the shutdown drain of persistence tasks — is flushed immediately by the recording path itself instead of being parked in a pending map that no longer has a flusher. Shutdown-path flushes (the final flush and write-through flushes after it) MUST retry transient failures a bounded number of times (3 attempts with a short constant backoff); if every attempt fails, the pending touches (API key ids and their timestamps) MUST be logged at WARNING so operators can reconstruct the lost values, and the failure MUST NOT propagate to the caller. On process crash, losing at most one flush interval (~30 seconds) of `last_used_at` freshness is accepted: the column's only consumer is the dashboard API response field (`lastUsedAt`), which no routing, ordering, or enforcement logic reads, so observed staleness of up to the flush interval is a display-only effect. A failed periodic flush MUST retain the pending touches for a later flush rather than dropping them.
@@ -1965,3 +1986,25 @@ The background expired-limit sweep MUST attempt each selected limit at most once
 
 - **WHEN** the background sweep finds no expired limits
 - **THEN** it returns zero without committing a batch
+
+### Requirement: Ultrafast token cost follows model, request time, and context length
+
+USD token estimates for upstream-reported Ultrafast usage SHALL use Ultrafast input, cached input, and output prices. Reservations SHALL use the requested tier and settlement SHALL use the effective billed tier. The price lookup SHALL use the request or reservation time when available, including when rebuilding a historical breakdown. Persisted totals SHALL retain their recorded value.
+
+#### Scenario: GPT-6.2 promotion ends at Pacific midnight
+
+- **WHEN** a GPT-6.2 Astra or Sol Ultrafast request starts before March 1, 2027 at 00:00 Pacific time
+- **THEN** the published promotional API rates apply
+- **AND** a request at or after that instant uses the published list rates
+
+#### Scenario: Long input changes the price of the entire request
+
+- **WHEN** a supported model receives more than 272,000 input tokens including cached input
+- **THEN** the long-context Ultrafast prices apply to all three token categories
+- **AND** exactly 272,000 input tokens use short-context rates
+
+#### Scenario: A provider advertises a service tier without a price
+
+- **WHEN** a catalog has no usable Ultrafast rates for a documented model
+- **THEN** the official bundled schedule supplies the missing rates
+- **AND** pricing alone grants no account access to the model or service tier

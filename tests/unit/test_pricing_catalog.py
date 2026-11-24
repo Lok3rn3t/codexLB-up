@@ -160,10 +160,13 @@ def test_conflicting_priority_rate_cannot_borrow_long_context_rates():
 def test_bundled_snapshot_covers_astra_without_network():
     prices = catalog.decode_snapshot(json.loads(catalog.BUNDLE_PATH.read_text()))
     assert "gpt-6-astra" in prices
-    assert get_pricing_for_model("gpt-6-astra") == ("gpt-6-astra", prices["gpt-6-astra"])
+    resolved = get_pricing_for_model("gpt-6-astra")
+    assert resolved is not None
+    assert resolved[1].input_per_1m == prices["gpt-6-astra"].input_per_1m
+    assert resolved[1].ultrafast_input_per_1m == 60
 
 
-@pytest.mark.parametrize("tier", ["priority", "flex"])
+@pytest.mark.parametrize("tier", ["priority", "flex", "ultrafast"])
 def test_litellm_tier_only_long_context_rates_are_used(tier):
     entry = {
         "litellm_provider": "openai",
@@ -191,7 +194,9 @@ def test_litellm_tier_only_long_context_rates_are_used(tier):
     )
 
 
-@pytest.mark.parametrize("prefix", ["long_context_", "priority_long_context_", "flex_long_context_"])
+@pytest.mark.parametrize(
+    "prefix", ["long_context_", "priority_long_context_", "flex_long_context_", "ultrafast_long_context_"]
+)
 @pytest.mark.parametrize("threshold", [None, 0])
 def test_snapshot_rejects_long_context_rates_without_positive_threshold(prefix, threshold):
     values = {"input_per_1m": 10, "output_per_1m": 50, prefix + "input_per_1m": 20, prefix + "output_per_1m": 100}
@@ -199,3 +204,54 @@ def test_snapshot_rejects_long_context_rates_without_positive_threshold(prefix, 
         values["long_context_threshold_tokens"] = threshold
     with pytest.raises(ValueError, match="Missing context threshold"):
         catalog.decode_snapshot({"schema_version": 1, "models": {"gpt-test": values}})
+
+
+def test_models_dev_ultrafast_mode_requires_prices_and_preserves_its_own_context_threshold():
+    data = models_dev()
+    mode = {"provider": {"body": {"service_tier": "ultrafast"}}}
+    data["openai"]["models"]["gpt-test"]["experimental"] = {"modes": {"turbo": mode}}
+    usage = UsageTokens(272001, 0)
+    price = catalog.parse_models_dev(data)["gpt-test"]
+    assert calculate_cost_from_usage(usage, price, service_tier="ultrafast") is None
+
+    mode["cost"] = {
+        "input": 6,
+        "cache_read": 0.3,
+        "output": 30,
+        "tiers": [{"tier": {"type": "context", "size": 272000}, "input": 12, "cache_read": 0.6, "output": 45}],
+    }
+    prices = catalog.parse_models_dev(data)
+    restored = catalog.decode_snapshot(json.loads(catalog.encode_snapshot(prices)))["gpt-test"]
+    assert restored == prices["gpt-test"]
+    assert calculate_cost_from_usage(usage, restored, service_tier="ultrafast") == pytest.approx(3.264012)
+    assert calculate_cost_from_usage(usage, restored) == pytest.approx(2.72001)
+
+    mode["cost"]["tiers"][0]["tier"].pop("size")
+    with pytest.raises(ValueError, match="no valid OpenAI prices"):
+        catalog.parse_models_dev(data)
+
+
+def test_litellm_keeps_distinct_standard_and_ultrafast_thresholds_for_known_model():
+    prices = catalog.parse_litellm(
+        {
+            "gpt-6-astra": {
+                "litellm_provider": "openai",
+                "mode": "chat",
+                "input_cost_per_token": 1e-5,
+                "output_cost_per_token": 5e-5,
+                "input_cost_per_token_above_200k_tokens": 2e-5,
+                "output_cost_per_token_above_200k_tokens": 6e-5,
+                "input_cost_per_token_above_300k_tokens_ultrafast": 8e-5,
+                "output_cost_per_token_above_300k_tokens_ultrafast": 2e-4,
+            }
+        }
+    )
+    resolved = get_pricing_for_model("gpt-6-astra", prices)
+    assert resolved is not None
+    price = resolved[1]
+    assert price.long_context_threshold_tokens == 200_000
+    assert price.ultrafast_long_context_threshold_tokens == 300_000
+    assert calculate_cost_from_usage(UsageTokens(300_000, 0), price, service_tier="ultrafast") == pytest.approx(18)
+    assert calculate_cost_from_usage(UsageTokens(300_001, 0), price, service_tier="ultrafast") == pytest.approx(
+        24.00008
+    )

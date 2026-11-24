@@ -46,12 +46,23 @@ def _rates(data: dict[str, JsonValue], names: dict[str, str], scale: int = 1) ->
 def _price(values: dict[str, float]) -> ModelPrice:
     if not {"input_per_1m", "output_per_1m"} <= values.keys():
         raise ValueError("Incomplete base prices")
-    for prefix in ("priority_", "flex_", "long_context_", "priority_long_context_", "flex_long_context_"):
+    for prefix in (
+        "priority_",
+        "flex_",
+        "ultrafast_",
+        "long_context_",
+        "priority_long_context_",
+        "flex_long_context_",
+        "ultrafast_long_context_",
+    ):
         group = {prefix + part + "_per_1m" for part in ("input", "output")}
         present = (group | {prefix + "cached_input_per_1m"}) & values.keys()
         if present and not group <= values.keys():
             raise ValueError("Incomplete tier prices")
-        if present and "long_context_" in prefix and values.get("long_context_threshold_tokens", 0) <= 0:
+        threshold = values.get("long_context_threshold_tokens", 0)
+        if prefix == "ultrafast_long_context_":
+            threshold = values.get("ultrafast_long_context_threshold_tokens", threshold)
+        if present and "long_context_" in prefix and threshold <= 0:
             raise ValueError("Missing context threshold")
     return ModelPrice(**values)
 
@@ -85,8 +96,26 @@ def parse_models_dev(payload: JsonValue) -> dict[str, ModelPrice]:
             for raw_mode in modes.values():
                 mode = _object(raw_mode)
                 tier_name = _object(_object(mode.get("provider")).get("body")).get("service_tier")
-                if tier_name in ("priority", "flex"):
-                    values.update(_rates(_object(mode.get("cost")), {k: f"{tier_name}_{v}" for k, v in names.items()}))
+                if tier_name in ("priority", "flex", "ultrafast"):
+                    mode_cost = _object(mode.get("cost"))
+                    values.update(_rates(mode_cost, {k: f"{tier_name}_{v}" for k, v in names.items()}))
+                    if tier_name == "ultrafast":
+                        mode_tiers = mode_cost.get("tiers", [])
+                        if not isinstance(mode_tiers, list) or len(mode_tiers) > 1:
+                            raise ValueError("Unsupported mode context tiers")
+                        if mode_tiers:
+                            mode_tier = _object(mode_tiers[0])
+                            descriptor = _object(mode_tier.get("tier"))
+                            threshold = _rates(descriptor, {"size": "ultrafast_long_context_threshold_tokens"})
+                            if (
+                                descriptor.get("type") != "context"
+                                or threshold.get("ultrafast_long_context_threshold_tokens", 0) <= 0
+                            ):
+                                raise ValueError("Unsupported Ultrafast context tier")
+                            values.update(threshold)
+                            values.update(
+                                _rates(mode_tier, {k: f"{tier_name}_long_context_{v}" for k, v in names.items()})
+                            )
             result[model.lower()] = _price(values)
         except (ValueError, OverflowError):
             logger.debug("Ignoring unsupported models.dev price for %s", model)
@@ -110,22 +139,28 @@ def parse_litellm(payload: JsonValue) -> dict[str, ModelPrice]:
             continue
         try:
             values = _rates(entry, base, 1_000_000)
-            for tier in ("priority", "flex"):
+            for tier in ("priority", "flex", "ultrafast"):
                 values.update(_rates(entry, {f"{k}_{tier}": f"{tier}_{v}" for k, v in base.items()}, 1_000_000))
-            thresholds = {
-                int(key.split("_above_")[1].split("k_tokens")[0]) * 1000
-                for key in entry
-                if key.startswith("input_cost_per_token_above_") and "k_tokens" in key
-            }
-            if len(thresholds) > 1:
-                raise ValueError("Unsupported multiple thresholds")
-            if thresholds:
-                threshold = thresholds.pop()
-                values["long_context_threshold_tokens"] = float(threshold)
-                for tier in ("", "priority", "flex"):
-                    suffix = f"_above_{threshold // 1000}k_tokens" + (f"_{tier}" if tier else "")
-                    prefix = f"{tier}_long_context_" if tier else "long_context_"
-                    values.update(_rates(entry, {k + suffix: prefix + v for k, v in base.items()}, 1_000_000))
+            for tiers, field in (
+                (("", "priority", "flex"), "long_context_threshold_tokens"),
+                (("ultrafast",), "ultrafast_long_context_threshold_tokens"),
+            ):
+                thresholds = {
+                    int(key.split("_above_")[1].split("k_tokens")[0]) * 1000
+                    for key in entry
+                    if key.startswith("input_cost_per_token_above_")
+                    and "k_tokens" in key
+                    and key.rsplit("k_tokens", 1)[1].removeprefix("_") in tiers
+                }
+                if len(thresholds) > 1:
+                    raise ValueError("Unsupported multiple thresholds for a tier")
+                if thresholds:
+                    threshold = thresholds.pop()
+                    values[field] = float(threshold)
+                    for tier in tiers:
+                        suffix = f"_above_{threshold // 1000}k_tokens" + (f"_{tier}" if tier else "")
+                        prefix = f"{tier}_long_context_" if tier else "long_context_"
+                        values.update(_rates(entry, {k + suffix: prefix + v for k, v in base.items()}, 1_000_000))
             result[model.lower()] = _price(values)
         except (ValueError, OverflowError):
             logger.debug("Ignoring unsupported LiteLLM price for %s", model)

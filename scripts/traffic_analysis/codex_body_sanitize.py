@@ -564,6 +564,15 @@ class _Arr(_Node):
         return self.item.vocabulary()
 
 
+class _EmptyArray(_Node):
+    """A present but empty metadata field carries no captured content."""
+
+    def apply(self, value: Any, path: str, run: _Run) -> Any:
+        if value != []:
+            raise _refuse(path, "only an empty metadata array is reviewed")
+        return []
+
+
 @dataclass(frozen=True, slots=True)
 class _Obj(_Node):
     """An object with a closed key namespace.
@@ -812,7 +821,7 @@ _CONTENT_PART = _Switch(
     "type",
     {
         "input_text": _TEXT_PART,
-        "output_text": _TEXT_PART,
+        "output_text": _Obj({**_TEXT_PART.fields, "annotations": _EmptyArray(), "logprobs": _EmptyArray()}),
         "text": _TEXT_PART,
         "refusal": _Obj({"type": _Enum(CONTENT_PART_TYPES), "refusal": _Text()}),
         "input_image": _IMAGE_PART,

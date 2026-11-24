@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime
+from decimal import Decimal
 from fnmatch import fnmatchcase
 from typing import Iterable, Mapping
 
 from app.core.openai.models import ResponseUsage
 from app.core.usage.types import UsageCostByModel, UsageCostSummary
+from app.core.utils.time import to_utc_naive, utcnow
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,13 @@ class ModelPrice:
     flex_long_context_input_per_1m: float | None = None
     flex_long_context_output_per_1m: float | None = None
     flex_long_context_cached_input_per_1m: float | None = None
+    ultrafast_input_per_1m: float | None = None
+    ultrafast_output_per_1m: float | None = None
+    ultrafast_cached_input_per_1m: float | None = None
+    ultrafast_long_context_threshold_tokens: float | None = None
+    ultrafast_long_context_input_per_1m: float | None = None
+    ultrafast_long_context_output_per_1m: float | None = None
+    ultrafast_long_context_cached_input_per_1m: float | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +64,7 @@ class CostItem:
     model: str
     usage: UsageTokens
     service_tier: str | None = None
+    requested_at: datetime | None = None
 
 
 def _as_number(value: int | float | None) -> float | None:
@@ -95,6 +106,36 @@ def _normalize_usage(usage: UsageTokens | ResponseUsage | None) -> UsageTokens |
 
 
 DEFAULT_PRICING_MODELS: dict[str, ModelPrice] = {
+    "gpt-6.2-astra": ModelPrice(
+        input_per_1m=8.0,
+        cached_input_per_1m=0.4,
+        output_per_1m=40.0,
+        priority_input_per_1m=16.0,
+        priority_cached_input_per_1m=0.8,
+        priority_output_per_1m=80.0,
+        long_context_threshold_tokens=272_000,
+        long_context_input_per_1m=16.0,
+        long_context_cached_input_per_1m=0.8,
+        long_context_output_per_1m=60.0,
+        priority_long_context_input_per_1m=32.0,
+        priority_long_context_cached_input_per_1m=1.6,
+        priority_long_context_output_per_1m=120.0,
+    ),
+    "gpt-6.2-sol": ModelPrice(
+        input_per_1m=2.0,
+        cached_input_per_1m=0.1,
+        output_per_1m=10.0,
+        priority_input_per_1m=4.0,
+        priority_cached_input_per_1m=0.2,
+        priority_output_per_1m=20.0,
+        long_context_threshold_tokens=272_000,
+        long_context_input_per_1m=4.0,
+        long_context_cached_input_per_1m=0.2,
+        long_context_output_per_1m=15.0,
+        priority_long_context_input_per_1m=8.0,
+        priority_long_context_cached_input_per_1m=0.4,
+        priority_long_context_output_per_1m=30.0,
+    ),
     "gpt-5.6-sol": ModelPrice(
         input_per_1m=5.0,
         cached_input_per_1m=0.5,
@@ -330,6 +371,8 @@ DEFAULT_PRICING_MODELS: dict[str, ModelPrice] = {
 }
 
 DEFAULT_MODEL_ALIASES: dict[str, str] = {
+    "gpt-6.2-astra*": "gpt-6.2-astra",
+    "gpt-6.2-sol*": "gpt-6.2-sol",
     "gpt-5.6": "gpt-5.6-sol",
     "gpt-5.6-sol*": "gpt-5.6-sol",
     "gpt-5.6-terra*": "gpt-5.6-terra",
@@ -374,10 +417,10 @@ def resolve_model_alias(model: str, aliases: Mapping[str, str]) -> str | None:
     return max(matched, key=lambda item: item[0])[1]
 
 
-def get_pricing_for_model(
+def _lookup_model_price(
     model: str,
-    pricing: Mapping[str, ModelPrice] | None = None,
-    aliases: Mapping[str, str] | None = None,
+    pricing: Mapping[str, ModelPrice] | None,
+    aliases: Mapping[str, str] | None,
 ) -> tuple[str, ModelPrice] | None:
     if not model:
         return None
@@ -396,6 +439,11 @@ def get_pricing_for_model(
     if dated and dated[1] in pricing:
         return dated[1], pricing[dated[1]]
 
+    if normalized.endswith("-snapshot"):
+        family = normalized.removesuffix("-snapshot")
+        if family in _ULTRAFAST_LIST_RATES and family in pricing:
+            return family, pricing[family]
+
     alias = resolve_model_alias(normalized, aliases)
     if not alias or (alias == "gpt-5" and normalized.startswith("gpt-5.")):
         return None
@@ -405,18 +453,62 @@ def get_pricing_for_model(
     return None
 
 
-def _uses_priority_tier(service_tier: str | None) -> bool:
-    normalized = _normalize_service_tier(service_tier)
-    if normalized is None:
-        return False
-    return normalized in {"priority", "fast"}
+# Published USD per million tokens (input, cached input, output).
+# https://developers.openai.com/api/docs/pricing#ultrafast
+_ULTRAFAST_LIST_RATES = {
+    "gpt-6.2-astra": (48.0, 2.4, 240.0),
+    "gpt-6.2-sol": (12.0, 0.6, 60.0),
+    "gpt-6-astra": (60.0, 6.0, 300.0),
+    "gpt-6.1-sol": (12.0, 0.6, 60.0),
+}
+_ULTRAFAST_RATE_FIELDS = (
+    "ultrafast_input_per_1m",
+    "ultrafast_cached_input_per_1m",
+    "ultrafast_output_per_1m",
+    "ultrafast_long_context_input_per_1m",
+    "ultrafast_long_context_cached_input_per_1m",
+    "ultrafast_long_context_output_per_1m",
+)
+# March 1, 2027, midnight in Los Angeles.
+_ULTRAFAST_PROMO_END_UTC = datetime(2027, 3, 1, 8)
 
 
-def _uses_flex_tier(service_tier: str | None) -> bool:
-    normalized = _normalize_service_tier(service_tier)
-    if normalized is None:
-        return False
-    return normalized == "flex"
+def get_pricing_for_model(
+    model: str,
+    pricing: Mapping[str, ModelPrice] | None = None,
+    aliases: Mapping[str, str] | None = None,
+    *,
+    priced_at: datetime | None = None,
+) -> tuple[str, ModelPrice] | None:
+    resolved = _lookup_model_price(model, pricing, aliases)
+    if resolved is None:
+        return None
+    canonical, price = resolved
+    family = re.sub(r"-(?:\d{4}-\d{2}-\d{2}|snapshot)$", "", model.lower())
+    rates = _ULTRAFAST_LIST_RATES.get(family)
+    if rates is None:
+        # A broad Standard-price wildcard is insufficient evidence of an Ultrafast rate.
+        if (
+            (price.ultrafast_input_per_1m is not None or price.ultrafast_long_context_input_per_1m is not None)
+            and family != canonical.lower()
+            and canonical.lower() != model.lower()
+        ):
+            price = replace(price, **{name: None for name in _ULTRAFAST_RATE_FIELDS})
+        return canonical, price
+
+    input_rate, cached_rate, output_rate = rates
+    scheduled = family in ("gpt-6.2-astra", "gpt-6.2-sol")
+    if scheduled and (to_utc_naive(priced_at) if priced_at is not None else utcnow()) < _ULTRAFAST_PROMO_END_UTC:
+        input_rate, cached_rate, output_rate = input_rate / 2, cached_rate / 2, output_rate / 2
+    # The published long-context table doubles both inputs and charges 1.5x for output.
+    published = (input_rate, cached_rate, output_rate, 2 * input_rate, 2 * cached_rate, 1.5 * output_rate)
+    overrides = {
+        name: rate
+        for name, rate in zip(_ULTRAFAST_RATE_FIELDS, published, strict=True)
+        if scheduled or getattr(price, name) is None
+    }
+    threshold = 272_000 if scheduled else (price.ultrafast_long_context_threshold_tokens or 272_000)
+    return canonical, replace(price, ultrafast_long_context_threshold_tokens=threshold, **overrides)
 
 
 def _normalize_service_tier(service_tier: str | None) -> str | None:
@@ -431,12 +523,14 @@ def _effective_rates(
     price: ModelPrice,
     *,
     service_tier: str | None,
-) -> tuple[float, float, float]:
-    is_long_context = (
-        price.long_context_threshold_tokens is not None
-        and price.long_context_threshold_tokens > 0
-        and usage.input_tokens > price.long_context_threshold_tokens
-    )
+) -> tuple[float, float, float] | None:
+    tier = _normalize_service_tier(service_tier)
+    if tier == "fast":
+        tier = "priority"
+    threshold = price.long_context_threshold_tokens
+    if tier == "ultrafast" and price.ultrafast_long_context_threshold_tokens is not None:
+        threshold = price.ultrafast_long_context_threshold_tokens
+    is_long_context = threshold is not None and threshold > 0 and usage.input_tokens > threshold
     has_standard_long_context = (
         price.long_context_input_per_1m is not None and price.long_context_output_per_1m is not None
     )
@@ -444,16 +538,24 @@ def _effective_rates(
     cached_rate = price.cached_input_per_1m if price.cached_input_per_1m is not None else input_rate
     output_rate = price.output_per_1m
 
-    if is_long_context:
-        tier = "priority" if _uses_priority_tier(service_tier) else "flex" if _uses_flex_tier(service_tier) else None
-        if tier is not None:
-            long_input = getattr(price, f"{tier}_long_context_input_per_1m")
-            long_output = getattr(price, f"{tier}_long_context_output_per_1m")
-            long_cached = getattr(price, f"{tier}_long_context_cached_input_per_1m")
-            if long_input is not None and long_output is not None:
-                return long_input, long_cached if long_cached is not None else long_input, long_output
+    if is_long_context and tier in ("ultrafast", "priority", "flex"):
+        long_input = getattr(price, f"{tier}_long_context_input_per_1m")
+        long_output = getattr(price, f"{tier}_long_context_output_per_1m")
+        long_cached = getattr(price, f"{tier}_long_context_cached_input_per_1m")
+        if long_input is not None and long_output is not None:
+            return long_input, long_cached if long_cached is not None else long_input, long_output
 
-    if _uses_priority_tier(service_tier):
+    if tier == "ultrafast":
+        if price.ultrafast_input_per_1m is None or price.ultrafast_output_per_1m is None:
+            return None
+        cached = price.ultrafast_cached_input_per_1m
+        return (
+            price.ultrafast_input_per_1m,
+            cached if cached is not None else price.ultrafast_input_per_1m,
+            price.ultrafast_output_per_1m,
+        )
+
+    if tier == "priority":
         if price.priority_input_per_1m is not None and price.priority_output_per_1m is not None:
             priority_cached = (
                 price.priority_cached_input_per_1m
@@ -467,7 +569,7 @@ def _effective_rates(
             output_rate *= price.priority_multiplier
             return input_rate, cached_rate, output_rate
 
-    if _uses_flex_tier(service_tier) and price.flex_input_per_1m is not None and price.flex_output_per_1m is not None:
+    if tier == "flex" and price.flex_input_per_1m is not None and price.flex_output_per_1m is not None:
         input_rate = price.flex_input_per_1m
         cached_rate = price.flex_cached_input_per_1m if price.flex_cached_input_per_1m is not None else input_rate
         output_rate = price.flex_output_per_1m
@@ -501,6 +603,28 @@ def calculate_cost_from_usage(
     return breakdown.total_usd
 
 
+def calculate_cost_microdollars_from_usage(
+    usage: UsageTokens | ResponseUsage | None,
+    price: ModelPrice,
+    *,
+    service_tier: str | None = None,
+) -> int | None:
+    normalized = _normalize_usage(usage)
+    if normalized is None:
+        return None
+    rates = _effective_rates(normalized, price, service_tier=service_tier)
+    if rates is None:
+        return None
+    input_rate, cached_rate, output_rate = rates
+    billable_input = max(0.0, normalized.input_tokens - normalized.cached_input_tokens)
+    # USD per million tokens is also microdollars per token. Avoid a float USD roundtrip.
+    return int(
+        Decimal(str(billable_input)) * Decimal(str(input_rate))
+        + Decimal(str(normalized.cached_input_tokens)) * Decimal(str(cached_rate))
+        + Decimal(str(max(0.0, normalized.output_tokens))) * Decimal(str(output_rate))
+    )
+
+
 def calculate_cost_breakdown_from_usage(
     usage: UsageTokens | ResponseUsage | None,
     price: ModelPrice,
@@ -513,11 +637,10 @@ def calculate_cost_breakdown_from_usage(
         return None
     billable_input = max(0.0, normalized.input_tokens - normalized.cached_input_tokens)
 
-    input_rate, cached_rate, output_rate = _effective_rates(
-        normalized,
-        price,
-        service_tier=service_tier,
-    )
+    rates = _effective_rates(normalized, price, service_tier=service_tier)
+    if rates is None:
+        return None
+    input_rate, cached_rate, output_rate = rates
 
     input_usd = (billable_input / 1_000_000) * input_rate
     cached_input_usd = (normalized.cached_input_tokens / 1_000_000) * cached_rate
@@ -558,7 +681,7 @@ def calculate_costs(
     for item in items:
         model = item.model
         usage = item.usage
-        resolved = get_pricing_for_model(model, pricing, aliases)
+        resolved = get_pricing_for_model(model, pricing, aliases, priced_at=item.requested_at)
         if not resolved:
             continue
         canonical, price = resolved

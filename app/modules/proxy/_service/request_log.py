@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from typing import Protocol, cast
 
 import anyio
 
 from app.core.clock import clock_for, scheduler_for
 from app.core.metrics.prometheus import PROMETHEUS_AVAILABLE, proxy_phase_latency_seconds
+from app.core.utils.time import to_utc_naive
 from app.modules.api_keys.service import ApiKeyData
 from app.modules.proxy._load_balancer.throughput_cohort import record_tps_sample
 from app.modules.proxy._load_balancer.ttft_cohort import record_ttft_sample
@@ -221,6 +223,7 @@ class _RequestLogMixin:
     ) -> None:
         task = scheduler_for(self).create_task(
             self._persist_request_log(
+                requested_at=to_utc_naive(clock_for(self).now()) - timedelta(milliseconds=max(0, latency_ms)),
                 affinity_observation=affinity_observation,
                 account_id=account_id,
                 api_key_id=api_key.id if api_key else None,
@@ -431,6 +434,7 @@ class _RequestLogMixin:
     async def _persist_request_log(
         self,
         *,
+        requested_at: datetime,
         affinity_observation: AffinityObservation | None = None,
         account_id: str | None,
         api_key_id: str | None,
@@ -483,6 +487,7 @@ class _RequestLogMixin:
         try:
             async with proxy._repo_factory() as repos:
                 await repos.request_logs.add_log(
+                    requested_at=requested_at,
                     sticky_key_source=affinity_observation.source if affinity_observation is not None else None,
                     sticky_kind=affinity_observation.kind if affinity_observation is not None else None,
                     sticky_key_hash=affinity_observation.key_hash if affinity_observation is not None else None,
