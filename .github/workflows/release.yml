@@ -529,17 +529,15 @@ jobs:
             echo
             echo "## Install / Run"
             echo '```bash'
-            if [ "${IS_PRERELEASE}" = "true" ]; then
-              if [ "${PUBLISH_PYPI}" = "true" ]; then
-                echo "uvx --from \"codexLB-up==${PYPI_VERSION}\" codex-lb"
-              fi
-              echo "docker pull ghcr.io/${GITHUB_REPOSITORY,,}:${TAG_VERSION}"
-              echo "helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${TAG_VERSION} --devel"
-            else
-              echo 'uvx --from codexLB-up codex-lb'
-              echo "docker pull ghcr.io/${GITHUB_REPOSITORY,,}:${TAG_VERSION}"
-              echo "helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${TAG_VERSION}"
+            if [ "${PUBLISH_PYPI}" = "true" ]; then
+              echo "uvx --from \"codexLB-up==${PYPI_VERSION}\" codex-lb"
             fi
+            echo "docker pull ghcr.io/${GITHUB_REPOSITORY,,}:${TAG_VERSION}"
+            helm_flags=""
+            if [ "${IS_PRERELEASE}" = "true" ]; then
+              helm_flags=" --devel"
+            fi
+            echo "helm install codex-lb oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/codex-lb --version ${TAG_VERSION}${helm_flags}"
             echo '```'
           } >> release_notes.md
 

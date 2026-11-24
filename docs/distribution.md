@@ -10,13 +10,13 @@ It is published independently by [Lok3rn3t](https://github.com/Lok3rn3t/codexLB-
 Requires Python 3.13 or newer. Run the release in an isolated environment with uv:
 
 ```sh
-uvx --from "codexLB-up==1.25.0" codex-lb
+uvx --from "codexLB-up==1.27.0" codex-lb
 ```
 
 Or install it inside a dedicated Python virtual environment:
 
 ```sh
-python -m pip install "codexLB-up==1.25.0"
+python -m pip install "codexLB-up==1.27.0"
 codex-lb --help
 codex-lb
 ```
@@ -38,7 +38,7 @@ docker run -d --name codex-lb --restart unless-stopped \
   --network codex-lb-net \
   -p 2455:2455 -p 1455:1455 \
   -v codex-lb-data:/var/lib/codex-lb \
-  ghcr.io/lok3rn3t/codexlb-up:1.25.0
+  ghcr.io/lok3rn3t/codexlb-up:1.27.0
 ```
 
 Open the dashboard at `http://localhost:2455`. The volume stores the database,
@@ -50,7 +50,7 @@ encryption key, and account data. Docker Compose examples are available in the
 The chart uses the fork image by default and is published to GHCR:
 
 ```sh
-helm pull oci://ghcr.io/lok3rn3t/charts/codex-lb --version 1.25.0
+helm pull oci://ghcr.io/lok3rn3t/charts/codex-lb --version 1.27.0
 ```
 
 Follow the [chart installation guide](https://github.com/Lok3rn3t/codexLB-up/blob/codexLB-up/deploy/helm/codex-lb/README.md)
@@ -60,7 +60,7 @@ for bundled or external PostgreSQL and cluster configuration.
 
 The supported source is upstream `codex-lb==1.25.0b9`, whose Docker tag is
 `ghcr.io/soju06/codex-lb:1.25.0-beta.9`. The target is
-`ghcr.io/lok3rn3t/codexlb-up:1.25.0`. Keep the existing database engine,
+`ghcr.io/lok3rn3t/codexlb-up:1.27.0`. Keep the existing database engine,
 data mounts, encryption key, environment, published ports, and Docker networks.
 There is no need to export and re-import accounts or create another database.
 
@@ -88,7 +88,7 @@ secrets and must not be shared publicly.
 
 ```bash
 set -e
-docker pull ghcr.io/lok3rn3t/codexlb-up:1.25.0
+docker pull ghcr.io/lok3rn3t/codexlb-up:1.27.0
 docker inspect codex-lb --format '{{.Config.Image}}'
 docker inspect codex-lb --format '{{range .Mounts}}{{println .Source "->" .Destination}}{{end}}'
 
@@ -115,7 +115,7 @@ docker run -d --name codex-lb --restart unless-stopped \
   --network codex-lb-net \
   -p 2455:2455 -p 1455:1455 \
   --volumes-from codex-lb-upstream-backup \
-  ghcr.io/lok3rn3t/codexlb-up:1.25.0
+  ghcr.io/lok3rn3t/codexlb-up:1.27.0
 
 docker logs --tail 100 codex-lb
 curl --fail --retry 30 --retry-delay 2 --retry-all-errors \

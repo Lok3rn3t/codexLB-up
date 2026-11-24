@@ -1,11 +1,46 @@
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 import yaml
+
+from scripts.release_versions import parse_tag
+
+
+@pytest.mark.parametrize(
+    ("tag", "publish_pypi"),
+    [("v1.27.0", True), ("v1.27.0-beta.1", True), ("v1.27.0-beta.1", False)],
+)
+def test_release_install_commands_select_the_tag(tmp_path: Path, tag: str, publish_pypi: bool) -> None:
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("The release workflow uses Bash")
+    path = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
+    steps = yaml.safe_load(path.read_text(encoding="utf-8"))["jobs"]["create-github-release"]["steps"]
+    script = next(step["run"] for step in steps if step.get("name") == "Append install and contributors")
+    release = parse_tag(tag)
+    env = {
+        **os.environ,
+        "TAG_NAME": tag,
+        "IS_PRERELEASE": str(release.is_prerelease).lower(),
+        "PYPI_VERSION": release.pypi_version,
+        "PUBLISH_PYPI": str(publish_pypi).lower(),
+        "GITHUB_REPOSITORY": "Lok3rn3t/codexLB-up",
+        "GITHUB_REPOSITORY_OWNER": "Lok3rn3t",
+    }
+    subprocess.run([bash, "-c", script], cwd=tmp_path, env=env, check=True)
+
+    lines = (tmp_path / "release_notes.md").read_text(encoding="utf-8").splitlines()
+    python_commands = [line for line in lines if line.startswith("uvx ")]
+    assert python_commands == ([f'uvx --from "codexLB-up=={release.pypi_version}" codex-lb'] if publish_pypi else [])
+    assert f"docker pull ghcr.io/lok3rn3t/codexlb-up:{release.version}" in lines
+    helm = f"helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb --version {release.version}"
+    assert helm + (" --devel" if release.is_prerelease else "") in lines
 
 
 @pytest.mark.parametrize("tag", ["v1.26.0", "v1.26.0-beta.1"])
