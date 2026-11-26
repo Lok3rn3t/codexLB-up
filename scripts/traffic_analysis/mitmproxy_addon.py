@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from mitmproxy import ctx, http  # ty: ignore[unresolved-import]
+from mitmproxy import ctx, http  # ty: ignore[import-not-found]
 
 try:
     from scripts.traffic_analysis.compare import canonical_request_payload

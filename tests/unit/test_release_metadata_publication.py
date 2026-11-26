@@ -116,6 +116,16 @@ def test_published_stable_fork_rebuild_can_skip_pypi() -> None:
     assert "is_prerelease=false" in result.stdout.splitlines()
 
 
+def test_release_build_stages_image_by_digest_before_promoting_the_version() -> None:
+    path = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
+    jobs = yaml.safe_load(path.read_text(encoding="utf-8"))["jobs"]
+    build = next(step for step in jobs["docker-build"]["steps"] if step.get("id") == "build-image")
+    assert "push-by-digest=true" in build["with"]["outputs"]
+    assert "tags" not in build["with"]
+    assert "docker-smoke" in jobs["docker-image"]["needs"]
+    assert "docker-image" in jobs["helm-chart"]["needs"]
+
+
 def test_beta_publisher_dispatches_once_after_candidate_validation() -> None:
     path = Path(__file__).resolve().parents[2] / ".github/workflows/publish-beta-release.yml"
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))

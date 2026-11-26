@@ -432,6 +432,7 @@ MUST omit PyPI installation commands when that publication was skipped.
 - **GIVEN** the fork has a public stable GitHub Release for the exact tag
 - **WHEN** a maintainer dispatches a rebuild with PyPI explicitly skipped
 - **THEN** the wheel, source distribution, Helm chart and verified multi-platform image are rebuilt from the tag
+- **AND** the versioned image and chart are published after image verification succeeds
 - **AND** the release page gives an install command for its GitHub-hosted wheel
 
 #### Scenario: Ordinary release retains its publication gate

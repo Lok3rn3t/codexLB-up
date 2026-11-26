@@ -220,11 +220,9 @@ jobs:
             type=raw,value=latest,enable=${{ needs.release-metadata.outputs.is_prerelease == 'false' }}
             type=raw,value=${{ needs.release-metadata.outputs.channel }},enable=${{ needs.release-metadata.outputs.is_prerelease == 'true' }}
 
-      - name: Set lowercase image ref
+      - name: Set lowercase image name
         id: image
-        env:
-          IMAGE_VERSION: ${{ needs.release-metadata.outputs.version }}
-        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}:${IMAGE_VERSION}" >> "$GITHUB_OUTPUT"
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
         id: build-image
@@ -232,9 +230,8 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.image.outputs.ref }}
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=codex-lb-release
           cache-to: type=gha,mode=max,scope=codex-lb-release
@@ -367,7 +364,7 @@ jobs:
 
   helm-chart:
     name: Publish Helm chart to GHCR
-    needs: [build]
+    needs: [build, docker-image]
     runs-on: ubuntu-24.04
 
     permissions:
