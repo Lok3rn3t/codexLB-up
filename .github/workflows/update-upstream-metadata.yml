@@ -1,0 +1,123 @@
+name: Update upstream metadata
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-upstream-metadata
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BASE_BRANCH: ${{ github.event.repository.default_branch }}
+  SNAPSHOT_FILES: |-
+    app/core/usage/pricing_snapshot.json
+    app/core/clients/codex_version_snapshot.py
+    app/core/openai/codex_models_snapshot.json
+    docs/reference/settings.md
+
+jobs:
+  refresh:
+    if: github.repository == 'Soju06/codex-lb' || github.repository == 'Lok3rn3t/codexLB-up'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+      base_sha: ${{ steps.checkout.outputs.commit }}
+      artifact_name: ${{ steps.changes.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        id: checkout
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Refresh and verify snapshots
+        run: |
+          uv sync --locked --dev
+          uv run python scripts/update_upstream_metadata.py
+          uv run python scripts/generate_settings_reference.py
+          uv run pytest tests/unit/test_pricing_catalog.py tests/unit/test_codex_version.py \
+            tests/unit/test_update_upstream_metadata.py tests/unit/test_settings_reference.py \
+            tests/unit/test_model_registry.py tests/unit/test_model_fetcher.py -q
+          uv run ruff check app/core/clients/codex_version_snapshot.py
+      - name: Detect changed snapshots
+        id: changes
+        run: |
+          mapfile -t snapshots <<< "${SNAPSHOT_FILES}"
+          git add -- "${snapshots[@]}"
+          if ! git diff --cached --quiet; then
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+            echo "artifact_name=metadata-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          name: ${{ steps.changes.outputs.artifact_name }}
+          path: ${{ env.SNAPSHOT_FILES }}
+          if-no-files-found: error
+
+  publish:
+    needs: refresh
+    if: needs.refresh.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Propose changed metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          ARTIFACT_NAME: ${{ needs.refresh.outputs.artifact_name }}
+          BASE_SHA: ${{ needs.refresh.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          gh run download "${GITHUB_RUN_ID}" --repo "${GITHUB_REPOSITORY}" --name "${ARTIFACT_NAME}" --dir "${RUNNER_TEMP}/snapshots"
+          export GH_TOKEN="${PR_TOKEN:-${GH_TOKEN}}"
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' clone --branch "${BASE_BRANCH}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" repository
+          cd repository
+          if [ "$(git rev-parse HEAD)" != "${BASE_SHA}" ]; then
+            echo "::error::${BASE_BRANCH} advanced during snapshot generation. Rerun the refresh."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git show-ref --verify --quiet refs/remotes/origin/chore/upstream-metadata; then
+            git switch --track origin/chore/upstream-metadata
+            git merge --no-edit "${BASE_SHA}"
+          else
+            git switch -c chore/upstream-metadata "${BASE_SHA}"
+          fi
+          mapfile -t snapshots <<< "${SNAPSHOT_FILES}"
+          for file in "${snapshots[@]}"; do
+            cp -- "${RUNNER_TEMP}/snapshots/${file}" "${file}"
+          done
+          git add -- "${snapshots[@]}"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(metadata): refresh model catalog, pricing and Codex version"
+          fi
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push --set-upstream origin chore/upstream-metadata
+          if [ -z "${PR_TOKEN}" ]; then
+            echo "Review branch: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${BASE_BRANCH}...chore/upstream-metadata" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          if [ -z "$(gh pr list --base "${BASE_BRANCH}" --head chore/upstream-metadata --state open --json number --jq '.[0].number // empty')" ]; then
+            cat > /tmp/upstream-metadata-pr.md <<'BODY'
+          Refreshes the bundled public model catalog from the matching stable Codex release, the offline prices from models.dev and LiteLLM, and the generated settings reference.
+
+          The generator validated the sources. Model registry, pricing, Codex version, metadata generation and settings reference tests passed.
+          BODY
+            gh pr create --base "${BASE_BRANCH}" --head chore/upstream-metadata \
+              --title "chore(metadata): refresh model catalog, pricing and Codex version" \
+              --body-file /tmp/upstream-metadata-pr.md
+          fi

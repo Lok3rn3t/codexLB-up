@@ -1,0 +1,67 @@
+name: Publish Beta Release
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  publish-beta-release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.base_ref == github.event.repository.default_branch &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/beta-')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout merged beta release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Verify beta release version
+        id: verify
+        shell: bash
+        run: python -m scripts.verify_release_version --require-channel beta
+
+      - name: Require release-candidate validation evidence
+        shell: bash
+        run: python -m scripts.guard_beta_release --mode publish
+
+      - name: Tag validated merge and dispatch artifact publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.verify.outputs.tag }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          SKIP_PYPI: ${{ github.repository != 'Soju06/codex-lb' }}
+        run: |
+          set -euo pipefail
+          tag_ref="refs/tags/${TAG}"
+          if git show-ref --verify --quiet "${tag_ref}"; then
+            existing_target="$(git rev-parse "${tag_ref}^{commit}")"
+            if [ "${existing_target}" != "${SHA}" ]; then
+              echo "::error::${TAG} already points to ${existing_target}, expected merged commit ${SHA}."
+              exit 1
+            fi
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" "${SHA}" -m "Release ${TAG}"
+            git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin "${tag_ref}"
+          fi
+
+          # GITHUB_TOKEN tag pushes do not trigger Release. Dispatch its
+          # tagged definition explicitly so only the requested publication runs.
+          gh workflow run release.yml --repo "${GITHUB_REPOSITORY}" --ref "${TAG}" \
+            -f tag="${TAG}" -f skip_pypi="${SKIP_PYPI}"
