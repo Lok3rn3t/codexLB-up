@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import time
 from collections import deque
+from collections.abc import Iterable
 from typing import Any, cast
 
 import anyio
@@ -179,20 +180,16 @@ async def test_h17_terminal_settlement_gets_post_drain_reserve_grace() -> None:
         finalize_started.set()
         await release.wait()
 
-    class _TracingWaitScheduler(RealScheduler):
-        """The settlement wait runs through the service's scheduler seam.
+    async def traced_wait[F: asyncio.Future[Any]](
+        fs: Iterable[F], *, timeout: float | None = None, return_when: str = asyncio.ALL_COMPLETED
+    ) -> tuple[set[F], set[F]]:
+        wait_timeout.append(float(timeout or 0.0))
+        return await asyncio.wait(fs, timeout=0, return_when=return_when)
 
-        ``RealScheduler.wait`` is ``asyncio.wait`` itself (bound at import), so
-        a process-wide ``asyncio.wait`` patch would not observe it; override
-        the seam on the injected scheduler instead.
-        """
-
-        async def wait(self, fs: Any, *, timeout: float | None = None, return_when: str = asyncio.ALL_COMPLETED) -> Any:
-            wait_timeout.append(float(timeout or 0.0))
-            return await asyncio.wait(fs, timeout=0, return_when=return_when)
-
-    service = proxy_service.ProxyService(cast(Any, lambda: None), scheduler=_TracingWaitScheduler())
+    scheduler = RealScheduler()
     monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(scheduler, "wait", traced_wait)
+    service = proxy_service.ProxyService(cast(Any, lambda: None), scheduler=scheduler)
     monkeypatch.setattr(service, "_finalize_claimed_websocket_requests", blocked_finalize)
     shutdown_state.commit_shutdown(timeout_seconds=0.0)
     shutdown_state.set_post_drain_cleanup_timeout_seconds(core_server.POST_DRAIN_CLEANUP_TIMEOUT_SECONDS)

@@ -237,7 +237,7 @@ class _AdditionalLimitFilterResult:
 
 
 @dataclass(frozen=True, slots=True)
-class _SelectionInputs(SelectionInputsProtocol):
+class _SelectionInputs:
     accounts: list[Account]
     latest_primary: dict[str, UsageHistory | AdditionalUsageHistory]
     latest_secondary: dict[str, UsageHistory | AdditionalUsageHistory]

@@ -409,9 +409,9 @@ readiness waits SHALL remain enforced on both architectures.
 ### Requirement: Explicit prerelease rebuild can omit PyPI
 
 A manually dispatched prerelease publication MAY explicitly skip PyPI upload.
-The metadata validator MUST reject this option for a stable release. Normal
+For a stable release the fork MAY accept this option only on manual dispatch after verifying that the same tag already has a public stable GitHub Release. Normal
 publication MUST continue to require PyPI success. An explicitly skipped PyPI
-job MUST permit GitHub prerelease creation only after Docker, Helm, metadata
+job MUST permit GitHub publication only after Docker, Helm, metadata
 and their build and verification dependencies succeed. Release instructions
 MUST omit PyPI installation commands when that publication was skipped.
 
@@ -422,10 +422,17 @@ MUST omit PyPI installation commands when that publication was skipped.
 - **THEN** Docker, Helm and GitHub prerelease artifacts are published
 - **AND** no Python distribution is uploaded to PyPI or advertised as uploaded
 
-#### Scenario: Stable publication cannot bypass PyPI
+#### Scenario: First stable publication requires PyPI
 
-- **WHEN** a manual dispatch requests skipping PyPI for a stable tag
+- **WHEN** a manual dispatch requests skipping PyPI for a stable tag without a matching published stable release in the fork
 - **THEN** release metadata validation fails before publication
+
+#### Scenario: An existing stable fork release is reissued
+
+- **GIVEN** the fork has a public stable GitHub Release for the exact tag
+- **WHEN** a maintainer dispatches a rebuild with PyPI explicitly skipped
+- **THEN** the wheel, source distribution, Helm chart and verified multi-platform image are rebuilt from the tag
+- **AND** the release page gives an install command for its GitHub-hosted wheel
 
 #### Scenario: Ordinary release retains its publication gate
 
@@ -434,7 +441,7 @@ MUST omit PyPI installation commands when that publication was skipped.
 
 ### Requirement: Release installation commands select the published artifacts
 
-For each GitHub Release, the generated install commands SHALL select the fork's Docker image and Helm chart at the exact release version. When Python packages are published, the uvx command SHALL pin the distribution to the PEP 440 version supplied by release metadata. A release that skips PyPI SHALL omit the Python command.
+For each GitHub Release, the generated install commands SHALL select the fork's Docker image and Helm chart at the exact release version. When Python packages are published, the uvx command SHALL pin the distribution to the PEP 440 version supplied by release metadata. A prerelease that skips PyPI SHALL omit the Python command. A stable fork rebuild that skips PyPI SHALL link the wheel from that GitHub Release.
 
 #### Scenario: Install from a stable release page after a newer release appears
 

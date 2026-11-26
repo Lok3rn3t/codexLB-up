@@ -13,15 +13,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", default=os.environ.get("RELEASE_TAG", ""), help="release tag, e.g. v1.2.3")
     parser.add_argument(
-        "--skip-pypi", action="store_true", help="rebuild prerelease artifacts without uploading to PyPI"
+        "--skip-pypi", action="store_true", help="rebuild eligible release artifacts without uploading to PyPI"
+    )
+    parser.add_argument(
+        "--published-stable-tag", default="", help="existing public stable tag verified by the workflow"
     )
     args = parser.parse_args()
 
     if not args.tag:
         raise SystemExit("missing release tag")
     release = parse_tag(args.tag)
-    if args.skip_pypi and not release.is_prerelease:
-        raise SystemExit("--skip-pypi is only allowed for prereleases")
+    if args.skip_pypi and not release.is_prerelease and args.published_stable_tag != release.tag:
+        raise SystemExit("--skip-pypi requires a prerelease or the matching published stable fork tag")
     outputs = {
         "tag": release.tag,
         "version": release.version,

@@ -91,7 +91,7 @@ jobs:
           persist-credentials: false
 
       - name: Validate canonical OpenSpec capabilities
-        run: npx --yes @fission-ai/openspec@1.11.0 validate --specs
+        run: npx --yes @fission-ai/openspec@2.2.0 validate --specs
 
       - name: Strictly validate changed OpenSpec folders
         run: python3 .github/scripts/validate_changed_openspec.py
@@ -111,7 +111,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -119,9 +119,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run frontend lint
         run: make frontend-lint
@@ -141,7 +141,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -149,9 +149,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run frontend type check
         run: make frontend-typecheck
@@ -174,7 +174,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -182,9 +182,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       # PRs run vitest without coverage instrumentation for a faster signal;
       # main pushes and the merge queue keep the full coverage run.
@@ -211,7 +211,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -219,9 +219,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build frontend
         run: make frontend-build
@@ -241,7 +241,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -249,9 +249,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -260,7 +260,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -288,7 +288,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -310,7 +310,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -335,7 +335,7 @@ jobs:
         run: rustup toolchain install 1.100.0 --profile minimal --component clippy,rustfmt
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -364,7 +364,7 @@ jobs:
           uv run pytest -q -ra tests/integration/test_native_routed_egress.py tests/integration/test_native_sse_egress.py tests/integration/test_native_websocket_events.py tests/integration/test_native_websocket_flow_control.py tests/integration/test_native_usage_egress.py
 
       - name: Audit Rust dependencies and licenses
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25
+        uses: EmbarkStudios/cargo-deny-action@81891abc19297b21343b15ef67dc61e4aea74fda
         with:
           rust-version: "1.100.0"
           command: check
@@ -400,7 +400,7 @@ jobs:
         if: needs.changes.outputs.backend == 'true'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         if: needs.changes.outputs.backend == 'true'
@@ -409,13 +409,13 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Set up uv
         if: needs.changes.outputs.backend == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -455,7 +455,7 @@ jobs:
         if: needs.changes.outputs.backend == 'true'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         if: needs.changes.outputs.backend == 'true'
@@ -464,13 +464,13 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Set up uv
         if: needs.changes.outputs.backend == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -553,7 +553,7 @@ jobs:
         if: needs.changes.outputs.backend == 'true'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         if: needs.changes.outputs.backend == 'true'
@@ -562,13 +562,13 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Set up uv
         if: needs.changes.outputs.backend == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -591,7 +591,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -627,7 +627,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -651,7 +651,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -659,12 +659,12 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           python-version: "3.13"
           enable-cache: true
@@ -720,7 +720,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@f3bbb05694c2f74569081c28664c0866d64dec21
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934
         if: ${{ !cancelled() && hashFiles('trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         with:
           sarif_file: trivy-results.sarif
@@ -737,6 +737,12 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
 
+      - name: Smoke-test the distroless runtime
+        run: |
+          docker buildx build --load --file Dockerfile.distroless --tag codex-lb:ci-distroless .
+          docker run --rm --entrypoint python codex-lb:ci-distroless -c \
+            'import os, sqlite3, ssl, zstandard; from app.main import create_app; assert os.getuid() != 0; assert create_app()'
+
   helm-lint:
     name: Helm lint + template + kubeconform
     runs-on: ubuntu-24.04
@@ -750,19 +756,19 @@ jobs:
           persist-credentials: false
 
       - name: Set up Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e
 
       - name: Cache kubeconform
         id: cache-kubeconform
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .cache/ci-tools/kubeconform
-          key: kubeconform-0.7.0-${{ runner.os }}-${{ runner.arch }}
+          key: kubeconform-0.8.0-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install kubeconform
         run: |
           set -euo pipefail
-          KUBECONFORM_VERSION="0.7.0"
+          KUBECONFORM_VERSION="0.8.0"
           TOOL_DIR=".cache/ci-tools/kubeconform"
           TOOL_PATH="${TOOL_DIR}/kubeconform"
           if [[ ! -x "${TOOL_PATH}" ]]; then
@@ -798,19 +804,19 @@ jobs:
           persist-credentials: false
 
       - name: Set up Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e
 
       - name: Cache kind
         id: cache-kind
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .cache/ci-tools/kind
-          key: kind-0.30.0-${{ runner.os }}-${{ runner.arch }}
+          key: kind-0.33.0-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install kind
         run: |
           set -euo pipefail
-          KIND_VERSION="0.30.0"
+          KIND_VERSION="0.33.0"
           TOOL_DIR=".cache/ci-tools/kind"
           TOOL_PATH="${TOOL_DIR}/kind"
           if [[ ! -x "${TOOL_PATH}" ]]; then
@@ -854,7 +860,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: "1.4.4"
+          bun-version: "1.4.5"
 
       - name: Cache Bun dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -862,9 +868,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             frontend/node_modules
-          key: bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
+          key: bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/bun.lock') }}
           restore-keys: |
-            bun-1.4.4-${{ runner.os }}-${{ runner.arch }}-
+            bun-1.4.5-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Verify bun.nix is generated from bun.lock
         run: |

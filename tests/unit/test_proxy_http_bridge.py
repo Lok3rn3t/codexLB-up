@@ -28181,6 +28181,7 @@ async def test_stream_via_http_bridge_fails_closed_before_file_affinity_when_pre
         ("missing_owner", False, None),
     ],
 )
+@pytest.mark.usefixtures("db_setup")
 async def test_stream_via_http_bridge_projects_plaintext_durable_full_resend_when_owner_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
     unsafe_replay_input: str | None,
@@ -28296,29 +28297,26 @@ async def test_stream_via_http_bridge_projects_plaintext_durable_full_resend_whe
             "internal_chat_message_metadata_passthrough": owner_metadata,
         },
     ]
+    input_items: list[proxy_service.JsonValue] = historical_input.copy()
+    input_items.append(retained_boundary_output)
+    input_items.extend(completed_search_bookkeeping)
+    if unsafe_replay_input != "missing_prior_output":
+        input_items.append(retained_prior_output)
+    input_items.append(new_input)
+    if unsafe_replay_input == "response_owned_developer":
+        input_items.append(
+            {
+                "type": "message",
+                "id": "msg_response_owned",
+                "role": "developer",
+                "internal_chat_message_metadata_passthrough": {"turn_id": "turn-next"},
+                "content": [{"type": "input_text", "text": "response-owned control"}],
+            }
+        )
     payload_data: dict[str, proxy_service.JsonValue] = {
         "model": "gpt-5.4",
         "instructions": "hi",
-        "input": [
-            *historical_input,
-            retained_boundary_output,
-            *completed_search_bookkeeping,
-            *([] if unsafe_replay_input == "missing_prior_output" else [retained_prior_output]),
-            new_input,
-            *(
-                [
-                    {
-                        "type": "message",
-                        "id": "msg_response_owned",
-                        "role": "developer",
-                        "internal_chat_message_metadata_passthrough": {"turn_id": "turn-next"},
-                        "content": [{"type": "input_text", "text": "response-owned control"}],
-                    }
-                ]
-                if unsafe_replay_input == "response_owned_developer"
-                else []
-            ),
-        ],
+        "input": input_items,
     }
     if unsafe_replay_input == "conversation":
         payload_data["conversation"] = "conv_owner_scoped"

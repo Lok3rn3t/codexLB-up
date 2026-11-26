@@ -28,7 +28,7 @@ def test_python_adapter_matches_shared_native_handshake_fixture() -> None:
 def test_linux_container_builds_and_installs_locked_native_egress(dockerfile_name: str) -> None:
     dockerfile = (_REPO_ROOT / dockerfile_name).read_text(encoding="utf-8")
 
-    assert "FROM rust:1.100.0-slim-bookworm AS native-egress-build" in dockerfile
+    assert "FROM rust:1.100.0-slim-trixie AS native-egress-build" in dockerfile
     assert "COPY Cargo.toml Cargo.lock ./" in dockerfile
     assert "COPY crates ./crates" in dockerfile
     assert "cargo build --release --locked --package codex-lb-egress-worker --bin codex-lb-native-egress" in dockerfile
@@ -46,7 +46,7 @@ def test_native_egress_lockfile_pins_compatible_release_versions() -> None:
 
     for name, version in (
         ("reqwest", "0.12.28"),
-        ("hyper", "1.12.0"),
+        ("hyper", "1.13.0"),
         ("hyper-util", "0.1.21"),
         ("rustls", "0.23.46"),
         ("tokio-rustls", "0.26.6"),
@@ -81,8 +81,8 @@ def test_native_egress_pins_codex_websocket_forks() -> None:
     manifest = (_REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8")
     lockfile = (_REPO_ROOT / "Cargo.lock").read_text(encoding="utf-8")
 
-    assert "0e5b2d73aa18dd9f0a50ee9ff199d5aef7594186" in manifest
-    assert "4fffad30fe373adbdcffab9545e9e9bf4f2fc19f" in manifest
+    assert "7a920470d62138955446b64220c7609e46ad770e" in manifest
+    assert "e19950ef7828cb311e6d51a6bedcebf0192e055c" in manifest
     assert 'name = "tokio-tungstenite"\nversion = "0.28.0"' in lockfile
     assert 'name = "tungstenite"\nversion = "0.27.0"' in lockfile
 

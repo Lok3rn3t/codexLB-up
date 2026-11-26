@@ -13,6 +13,7 @@ production incident).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable
 
 import pytest
 
@@ -137,15 +138,15 @@ async def test_shared_task_keeps_running_when_all_waiters_cancel():
     assert finished.is_set()
 
 
-async def test_timed_wait_runs_through_injected_scheduler_and_untimed_wait_does_not():
+async def test_timed_wait_runs_through_injected_scheduler_and_untimed_wait_does_not(monkeypatch: pytest.MonkeyPatch):
     recorded: list[tuple[object, float | None]] = []
 
-    class RecordingScheduler(RealScheduler):
-        async def wait_for(self, fut, timeout):
-            recorded.append((fut, timeout))
-            return await asyncio.wait_for(fut, timeout)
+    async def record_wait[T](fut: Awaitable[T], timeout: float | None) -> T:
+        recorded.append((fut, timeout))
+        return await asyncio.wait_for(fut, timeout)
 
-    scheduler = RecordingScheduler()
+    scheduler = RealScheduler()
+    monkeypatch.setattr(scheduler, "wait_for", record_wait)
     shared: asyncio.Future[str] = asyncio.get_running_loop().create_future()
     timed = asyncio.create_task(wait_on_shared_future(shared, timeout=5, scheduler=scheduler))
     untimed = asyncio.create_task(wait_on_shared_future(shared, scheduler=scheduler))

@@ -14,7 +14,7 @@ from scripts.release_versions import parse_tag
 
 @pytest.mark.parametrize(
     ("tag", "publish_pypi"),
-    [("v1.27.0", True), ("v1.27.0-beta.1", True), ("v1.27.0-beta.1", False)],
+    [("v1.27.0", True), ("v1.27.0", False), ("v1.27.0-beta.1", True), ("v1.27.0-beta.1", False)],
 )
 def test_release_install_commands_select_the_tag(tmp_path: Path, tag: str, publish_pypi: bool) -> None:
     bash = shutil.which("bash")
@@ -37,7 +37,14 @@ def test_release_install_commands_select_the_tag(tmp_path: Path, tag: str, publi
 
     lines = (tmp_path / "release_notes.md").read_text(encoding="utf-8").splitlines()
     python_commands = [line for line in lines if line.startswith("uvx ")]
-    assert python_commands == ([f'uvx --from "codexLB-up=={release.pypi_version}" codex-lb'] if publish_pypi else [])
+    if publish_pypi:
+        assert python_commands == [f'uvx --from "codexLB-up=={release.pypi_version}" codex-lb']
+    elif release.is_prerelease:
+        assert python_commands == []
+    else:
+        wheel = f"codexlb_up-{release.pypi_version}-py3-none-any.whl"
+        url = f"https://github.com/Lok3rn3t/codexLB-up/releases/download/{tag}/{wheel}"
+        assert python_commands == [f'uvx --from "{url}" codex-lb']
     assert f"docker pull ghcr.io/lok3rn3t/codexlb-up:{release.version}" in lines
     helm = f"helm install codex-lb oci://ghcr.io/lok3rn3t/charts/codex-lb --version {release.version}"
     assert helm + (" --devel" if release.is_prerelease else "") in lines
@@ -67,16 +74,46 @@ def test_prerelease_rebuild_can_skip_pypi() -> None:
     assert "make_latest=false" in outputs
 
 
-def test_stable_release_cannot_skip_pypi() -> None:
+@pytest.mark.parametrize("published_tag", ["", "v1.25.0"])
+def test_new_stable_release_cannot_skip_pypi(published_tag: str) -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "scripts.release_metadata", "--tag", "v1.26.0", "--skip-pypi"],
+        [
+            sys.executable,
+            "-m",
+            "scripts.release_metadata",
+            "--tag",
+            "v1.26.0",
+            "--skip-pypi",
+            "--published-stable-tag",
+            published_tag,
+        ],
         check=False,
         capture_output=True,
         text=True,
     )
     assert result.returncode != 0
-    assert "only allowed for prereleases" in result.stderr
+    assert "matching published stable fork tag" in result.stderr
     assert "publish_pypi=" not in result.stdout
+
+
+def test_published_stable_fork_rebuild_can_skip_pypi() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.release_metadata",
+            "--tag",
+            "v1.27.0",
+            "--skip-pypi",
+            "--published-stable-tag",
+            "v1.27.0",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "publish_pypi=false" in result.stdout.splitlines()
+    assert "is_prerelease=false" in result.stdout.splitlines()
 
 
 def test_beta_publisher_dispatches_once_after_candidate_validation() -> None:

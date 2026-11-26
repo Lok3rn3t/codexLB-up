@@ -8,7 +8,7 @@ import re
 import ssl
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Mapping, NoReturn, Protocol, Sequence, cast
+from typing import Any, Mapping, NoReturn, Protocol, Sequence, TypedDict, cast
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
 import aiohttp
@@ -117,6 +117,11 @@ _NATIVE_WEBSOCKET_FAILURE_PHASES = frozenset(
         "websocket_send",
     }
 )
+
+
+class _WebSocketConnectOptions(TypedDict, total=False):
+    subprotocols: Sequence[Subprotocol]
+    ssl: ssl.SSLContext
 
 
 class RealtimeWebSocketProtocol(StrEnum):
@@ -1147,8 +1152,11 @@ async def _connect_upstream_websocket(
     )
     proxy_url = resolve_websocket_proxy_from_env(url, proxy_env) if settings.upstream_websocket_trust_env else None
     try:
-        subprotocol_kwargs = {"subprotocols": cast(Sequence[Subprotocol], subprotocols)} if subprotocols else {}
-        ssl_kwargs = {"ssl": _shared_system_ssl_context()} if urlparse(url).scheme == "wss" else {}
+        options: _WebSocketConnectOptions = {}
+        if subprotocols:
+            options["subprotocols"] = cast(Sequence[Subprotocol], subprotocols)
+        if urlparse(url).scheme == "wss":
+            options["ssl"] = _shared_system_ssl_context()
         response = await websocket_connect(
             url,
             origin=origin,
@@ -1162,8 +1170,7 @@ async def _connect_upstream_websocket(
             # the direct path's default offer aligned with the routed aiohttp
             # path (``compress=15`` above).
             compression="deflate",
-            **subprotocol_kwargs,
-            **ssl_kwargs,
+            **options,
         )
     except asyncio.TimeoutError as exc:
         raise ProxyResponseError(

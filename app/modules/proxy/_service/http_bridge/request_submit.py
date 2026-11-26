@@ -4106,17 +4106,18 @@ class _HTTPBridgeRequestSubmitMixin:
                     await self._release_request_state_account_response_create_lease(request_state)
                     return False
                 try:
-                    request_state.response_create_admission = await scheduler_for(self).wait_for(
+                    admission = await scheduler_for(self).wait_for(
                         self._get_work_admission().acquire_response_create(),
                         timeout=remaining_retry_budget_seconds,
                     )
+                    request_state.response_create_admission = admission
                 except TimeoutError:
                     request_state.response_create_admission_reacquire_required = False
                     await self._release_request_state_account_response_create_lease(request_state)
                     return False
                 request_state.response_create_admission_reacquire_required = False
                 if clock.monotonic() >= retry_deadline:
-                    request_state.response_create_admission.release()
+                    admission.release()
                     request_state.response_create_admission = None
                     await self._release_request_state_account_response_create_lease(request_state)
                     return False
@@ -4127,8 +4128,9 @@ class _HTTPBridgeRequestSubmitMixin:
                         and not request_state.draining_until_terminal
                     )
                 if not retry_consumer_attached:
-                    request_state.response_create_admission.release()
-                    request_state.response_create_admission = None
+                    admission.release()
+                    if request_state.response_create_admission is admission:
+                        request_state.response_create_admission = None
                     await self._release_request_state_account_response_create_lease(request_state)
                     return False
             request_text = self._http_bridge_text_with_account_installation_id(session, request_state, request_text)
