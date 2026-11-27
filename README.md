@@ -143,6 +143,9 @@ for access guidance):
 
 ## Development
 
+Contributions are welcome. The [contribution guide](.github/CONTRIBUTING.md)
+explains how to create a branch, commit changes, and open a PR against `codexLB-up`.
+
 ```bash
 # Docker
 docker compose watch
